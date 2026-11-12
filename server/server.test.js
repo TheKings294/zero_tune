@@ -347,3 +347,33 @@ test('US5 clôture : sans connexion 401, déjà clôturée 409, corps non JSON 4
   assert.equal(noType.statusCode, 415);
   assert.equal(db.prepare('SELECT statut FROM annonces WHERE id = ?').get(open.id).statut, 'active');
 });
+
+// ---------- US6 : publication immédiate, sans validation manuelle ----------
+test('US6 aucune modération : pas de statut « en attente », pas de route d’approbation', async () => {
+  const sql = db.prepare("SELECT sql FROM sqlite_master WHERE name = 'annonces'").get().sql;
+  assert.ok(!/pending|attente|moder/i.test(sql));
+  for (const url of ['/api/moderation', '/api/admin', '/api/annonces/1/valider', '/api/annonces/1/approuver']) {
+    assert.ok([404, 401].includes((await post(url, {})).statusCode), url);
+  }
+});
+
+test('US6 un anonyme voit l’annonce dès la réponse 201, sans autre action', async () => {
+  const { cookie } = await login('kevin');
+  await get('/api/annonces'); await get('/api/annonces/1'); // caches serveur remplis
+  const res = await post('/api/annonces', { ...NEW, titre: 'Visible tout de suite' }, cookie);
+  assert.equal(res.statusCode, 201);
+  const pub = (await get('/api/annonces')).json(); // requête sans cookie
+  assert.equal(pub.items[0].titre, 'Visible tout de suite');
+  assert.equal((await get(`/api/annonces/${res.json().id}`)).statusCode, 200);
+});
+
+test('US6 le client ne peut imposer ni statut, ni propriétaire, ni date', async () => {
+  const { cookie } = await login('kevin');
+  const res = await post('/api/annonces', { ...NEW, titre: 'Champs en trop', statut: 'closed', user_id: 1, created_at: '2001-01-01T00:00:00Z' }, cookie);
+  assert.equal(res.statusCode, 201);
+  const row = db.prepare('SELECT a.statut, a.created_at, u.username FROM annonces a JOIN users u ON u.id = a.user_id WHERE a.id = ?').get(res.json().id);
+  assert.equal(row.statut, 'active');
+  assert.equal(row.username, 'kevin');
+  assert.ok(row.created_at > '2020');
+  assert.equal((await get('/api/annonces')).json().items[0].titre, 'Champs en trop');
+});

@@ -13,7 +13,7 @@ Complète `SPEC.md` (mêmes budgets : ≤ 500 Ko, ≤ 15 requêtes). Brief : US5
 Liste des annonces du compte : titre, prix ou « Don », catégorie, date, statut en **texte** (« En ligne » / « Clôturée »). Bouton « Clôturer » (nom accessible : « Clôturer l'annonce « titre » ») sur les annonces en ligne uniquement.
 **Boîte de dialogue** (`role="dialog"`, `aria-modal`, titre et description reliés ; sans `<dialog>`, absent des anciens iOS) : « L'échange a été effectué ? » — « L'annonce « … » passera en statut « Clôturée » et disparaîtra de la liste publique. » — [Oui, clôturer l'annonce] [Non, la garder en ligne]. Focus dans la boîte, Tab bouclé, Échap ferme, focus rendu au bouton d'origine, reste de la page masqué aux lecteurs d'écran.
 **Après confirmation** : statut « Clôturée », bouton retiré, message `role="status"` « Annonce clôturée — cache de la liste mis à jour. » (focus dessus).
-**États** — *Aucune annonce* : « Vous n'avez publié aucune annonce pour le moment. » + « Publier une annonce » · *Non connecté* : renvoi vers la connexion puis retour ici · *Hors connexion / erreur serveur / annonce déjà clôturée* : message clair, rien n'est modifié.
+**États** — *Aucune annonce* : « Vous n'avez publié aucune annonce pour le moment. » + « Ajouter une annonce » · *Non connecté* : renvoi vers la connexion puis retour ici · *Hors connexion / erreur serveur / annonce déjà clôturée* : message clair, rien n'est modifié.
 
 ## 3. Critère Gherkin → élément
 | Scénario | Élément vérifiable |

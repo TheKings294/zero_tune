@@ -11,10 +11,10 @@ Complète `SPEC.md` (mêmes budgets : ≤ 500 Ko, ≤ 15 requêtes). Brief : US4
 - Coût page : +1 requête (`/api/me`) ; accueil = 5, ≤ 15.
 
 ## 2. Écrans (RGAA : labels visibles, « (obligatoire) » en texte, `aria-invalid`/`aria-describedby`, récapitulatif d'erreurs avec focus)
-**En-tête** : « Se connecter » / « Créer un compte » ; connecté : « Publier une annonce », « Se déconnecter », « Session : {prénom} ».
+**En-tête** : « Se connecter » / « Créer un compte » ; connecté : « Ajouter une annonce », « Mes annonces », « Se déconnecter », « Session : {prénom} ».
 **Connexion** : identifiant, mot de passe (`autocomplete`), erreur explicite liée au champ et annoncée. Pas d'encart « comptes de démo » (mots de passe publics sur un site réel).
 **Inscription** : identifiant, mot de passe (≥ 8), prénom, Email/Téléphone (radios) + champ (format indiqué).
-**Publier** (connecté, sinon renvoi vers la connexion puis retour) : titre et description avec compteurs, prix **ou** « C'est un don » (désactive le prix), catégorie, mention « Texte uniquement : pas de photo, pour une application légère », rappel du contact du compte. Champ vide → rien n'est envoyé, récapitulatif en tête (liens vers chaque champ) + message sous chaque champ. Succès → bandeau « Votre annonce est en ligne » sur l'accueil. Hors connexion → champs conservés, message clair.
+**Ajouter une annonce** (connecté, sinon renvoi vers la connexion puis retour) : titre et description avec compteurs, prix **ou** « C'est un don » (désactive le prix), catégorie, mention « Texte uniquement : pas de photo, pour une application légère », rappel du contact du compte. Champ vide → rien n'est envoyé, récapitulatif en tête (liens vers chaque champ) + message sous chaque champ. Succès → bandeau « Votre annonce est en ligne » sur l'accueil. Hors connexion → champs conservés, message clair.
 
 ## 3. Critère Gherkin → élément
 | Scénario | Élément vérifiable |

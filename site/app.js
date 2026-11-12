@@ -341,7 +341,7 @@
       nav.appendChild(el('li', {}, [a]));
     }
     if (me) {
-      link('#publier', 'Publier une annonce');
+      link('#publier', 'Ajouter une annonce');
       link('#mes-annonces', 'Mes annonces');
       var out = el('button', { type: 'button', 'class': 'navlink', text: 'Se déconnecter' });
       out.addEventListener('click', logout);
@@ -542,7 +542,7 @@
       clear: function () { catErr.hidden = true; catSel.removeAttribute('aria-invalid'); }
     };
     var box = summary();
-    var btn = el('button', { 'class': 'btn btn-primary', type: 'submit', text: 'Publier' });
+    var btn = el('button', { 'class': 'btn btn-primary', type: 'submit', text: "Créer l'annonce" });
     var contactNote = el('p', { 'class': 'note', text: 'Les élèves verront votre ' + (me.contact.type === 'email' ? 'email' : 'téléphone') + ' (' + me.contact.valeur + ') uniquement s’ils demandent à l’afficher.' });
     var form = el('form', { 'class': 'card-form', novalidate: 'novalidate' }, [
       el('p', { 'class': 'lead', text: 'Tous les champs sont obligatoires. Texte uniquement : pas de photo, pour une application légère.' }),
@@ -561,11 +561,11 @@
       if (!don.checked && (!prix || !isFinite(p) || p <= 0 || p > 9999)) errs.push({ field: f.prix, msg: 'Indiquez un prix (de 0,01 à 9 999 €) ou cochez « C’est un don ».' });
       if (!catSel.value) errs.push({ field: cat, msg: 'Choisissez une catégorie.' });
       if (errs.length) return showErrors(box, errs);
-      box.hidden = true; btn.disabled = true; btn.textContent = 'Publication…';
+      box.hidden = true; btn.disabled = true; btn.textContent = 'Création…';
       var body = { titre: titre, description: desc, categorie: catSel.value };
       if (don.checked) body.don = true; else body.prix = p;
       api('POST', '/api/annonces', body).then(function (r) {
-        btn.disabled = false; btn.textContent = 'Publier';
+        btn.disabled = false; btn.textContent = "Créer l'annonce";
         if (r.ok) {
           purgeListCache();
           flash = 'Votre annonce est en ligne : elle apparaît en tête de la liste.';
@@ -575,11 +575,11 @@
         var list = fromServer(r.json.erreurs, { titre: f.titre, description: f.desc, prix: f.prix, categorie: cat });
         if (list.length) showErrors(box, list); else networkMessage(box, 'Publication impossible, réessayez.');
       }, function () {
-        btn.disabled = false; btn.textContent = 'Publier';
+        btn.disabled = false; btn.textContent = "Créer l'annonce";
         networkMessage(box, 'Vous êtes hors connexion : l’annonce n’a pas été publiée. Vos champs sont conservés, réessayez avec du réseau.');
       });
     });
-    setView('Publier une annonce', [el('h1', { text: 'Publier une annonce' }), box, form]);
+    setView('Ajouter une annonce', [el('h1', { text: 'Ajouter une annonce' }), box, form]);
   }
 
   // ---- boîte de dialogue accessible (sans <dialog> : absent des anciens iOS) ----
@@ -677,7 +677,7 @@
       rowsData = r.json.items;
       if (!rowsData.length) {
         return fill(box, [el('div', { 'class': 'state' }, [el('p', { text: "Vous n'avez publié aucune annonce pour le moment." }),
-          el('a', { 'class': 'btn', href: '#publier', text: 'Publier une annonce' })])]);
+          el('a', { 'class': 'btn', href: '#publier', text: 'Ajouter une annonce' })])]);
       }
       fill(box, [list(rowsData)]);
     }).catch(function (err) {
