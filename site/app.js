@@ -60,8 +60,8 @@
   function setView(title, nodes) {
     document.title = title + ' — Repasse';
     vue.textContent = '';
-    nodes.forEach(function (n) { vue.appendChild(n); });
-    var h1 = vue.querySelector('h1');
+    nodes.forEach(function (n) { if (n) vue.appendChild(n); });
+    var h1 = document.getElementById('banner') || vue.querySelector('h1');
     if (h1) { h1.setAttribute('tabindex', '-1'); h1.focus(); }
     window.scrollTo(0, 0);
   }
@@ -153,9 +153,12 @@
 
   function renderList(st, keepFocus) {
     var me = ++token;
-    var shell = document.getElementById('filtres');
+    var shell = flash ? null : document.getElementById('filtres'); // un message à afficher reconstruit l'écran
     if (!shell) {
+      var banner = flash ? el('p', { id: 'banner', 'class': 'banner', role: 'status', tabindex: '-1', text: '✓ ' + flash }) : null;
+      flash = '';
       setView(st.cat ? 'Annonces — ' + st.cat : 'Annonces', [
+        banner,
         el('h1', { text: 'Annonces du lycée' }),
         el('p', { 'class': 'lead', text: 'Matériel donné ou vendu entre élèves. Consultation libre, sans compte.' }),
         filters(st),
@@ -306,12 +309,296 @@
     });
   }
 
+  // ---- compte (US4) ----
+  var me = null;
+  var meReady = false;
+  var flash = '';
+  var afterLogin = '';
+
+  function api(method, url, body) {
+    var opts = { method: method, headers: {}, credentials: 'same-origin' };
+    if (body !== undefined) { opts.headers['Content-Type'] = 'application/json'; opts.body = JSON.stringify(body); }
+    return fetch(url, opts).then(function (res) {
+      var parsed = res.status === 204 ? Promise.resolve({}) : res.json().catch(function () { return {}; });
+      return parsed.then(function (j) { return { status: res.status, ok: res.ok, json: j }; });
+    });
+  }
+
+  var meP = api('GET', '/api/me').then(function (r) { me = r.ok ? r.json.user : null; }, function () { me = null; })
+    .then(function () { meReady = true; renderNav(); });
+
+  function go(hash) {
+    if (location.hash === hash) route(); else location.hash = hash;
+  }
+
+  function renderNav() {
+    var nav = document.getElementById('nav');
+    var cur = location.hash.split('?')[0];
+    nav.textContent = '';
+    function link(href, label) {
+      var a = el('a', { 'class': 'navlink', href: href, text: label });
+      if (cur === href) a.setAttribute('aria-current', 'page');
+      nav.appendChild(el('li', {}, [a]));
+    }
+    if (me) {
+      link('#publier', 'Publier une annonce');
+      var out = el('button', { type: 'button', 'class': 'navlink', text: 'Se déconnecter' });
+      out.addEventListener('click', logout);
+      nav.appendChild(el('li', {}, [out]));
+    } else if (meReady) {
+      link('#connexion', 'Se connecter');
+      link('#inscription', 'Créer un compte');
+    }
+    document.getElementById('session').textContent = me ? 'Session : ' + me.prenom : '';
+  }
+
+  function logout() {
+    api('POST', '/api/logout').then(function () {}, function () {}).then(function () {
+      me = null;
+      flash = 'Vous êtes déconnecté·e. Les annonces restent consultables sans compte.';
+      renderNav();
+      go('#liste');
+    });
+  }
+
+  // ---- formulaires : champs, erreurs liées (aria-describedby / aria-invalid), récapitulatif ----
+  function field(o) {
+    var attrs = { id: o.id, name: o.id, 'aria-required': 'true' };
+    if (!o.textarea) attrs.type = o.type || 'text';
+    ['autocomplete', 'maxlength', 'inputmode', 'autocapitalize', 'spellcheck'].forEach(function (k) { if (o[k]) attrs[k] = o[k]; });
+    var input = el(o.textarea ? 'textarea' : 'input', attrs);
+    var ids = [];
+    var kids = [el('label', { 'for': o.id, text: o.label + (o.optional ? '' : ' (obligatoire)') }), input];
+    if (o.hint) { kids.push(el('p', { 'class': 'hint', id: o.id + '-hint', text: o.hint })); ids.push(o.id + '-hint'); }
+    var count = null;
+    if (o.counter) {
+      count = el('p', { 'class': 'hint count', id: o.id + '-count', text: '0 / ' + o.counter });
+      kids.push(count); ids.push(o.id + '-count');
+      input.addEventListener('input', function () { count.textContent = [].slice.call(input.value).length + ' / ' + o.counter; });
+    }
+    var err = el('p', { 'class': 'err', id: o.id + '-err', hidden: 'hidden' });
+    kids.push(err); ids.push(o.id + '-err');
+    input.setAttribute('aria-describedby', ids.join(' '));
+    return {
+      id: o.id, input: input, wrap: el('div', { 'class': 'field' }, kids),
+      setError: function (msg) {
+        err.textContent = '⚠ ' + msg; err.hidden = false; input.setAttribute('aria-invalid', 'true');
+      },
+      clear: function () { err.hidden = true; err.textContent = ''; input.removeAttribute('aria-invalid'); }
+    };
+  }
+
+  function summary() {
+    return el('div', { 'class': 'summary', role: 'alert', tabindex: '-1', hidden: 'hidden' });
+  }
+
+  // errors : [{field: <champ>, msg}] — le récapitulatif reçoit le focus, chaque lien mène au champ.
+  function showErrors(box, errors, lead) {
+    box.textContent = '';
+    box.appendChild(el('h2', { text: lead || (errors.length > 1 ? errors.length + ' champs à corriger' : '1 champ à corriger') }));
+    var ul = el('ul', {});
+    errors.forEach(function (e) {
+      e.field.setError(e.msg);
+      var a = el('a', { href: '#' + e.field.id, text: e.msg });
+      a.addEventListener('click', function (ev) { ev.preventDefault(); e.field.input.focus(); });
+      ul.appendChild(el('li', {}, [a]));
+    });
+    box.appendChild(ul);
+    box.hidden = false;
+    box.focus();
+  }
+
+  function networkMessage(box, text) {
+    box.textContent = '';
+    box.appendChild(el('h2', { text: text }));
+    box.hidden = false;
+    box.focus();
+  }
+
+  function fromServer(errs, map) {
+    return Object.keys(errs || {}).filter(function (k) { return map[k]; }).map(function (k) { return { field: map[k], msg: errs[k] }; });
+  }
+
+  // ---- connexion ----
+  function renderLogin() {
+    if (me) return go('#liste');
+    var id = field({ id: 'l-username', label: 'Identifiant', autocomplete: 'username', autocapitalize: 'none', spellcheck: 'false', hint: 'En minuscules, sans espace.' });
+    var pw = field({ id: 'l-password', label: 'Mot de passe', type: 'password', autocomplete: 'current-password' });
+    var box = summary();
+    var btn = el('button', { 'class': 'btn btn-primary', type: 'submit', text: 'Se connecter' });
+    var form = el('form', { 'class': 'card-form', novalidate: 'novalidate' }, [
+      el('p', { 'class': 'lead', text: 'Les deux champs sont obligatoires.' }), id.wrap, pw.wrap, btn]);
+    form.addEventListener('submit', function (ev) {
+      ev.preventDefault();
+      id.clear(); pw.clear();
+      var errs = [];
+      if (!id.input.value.trim()) errs.push({ field: id, msg: 'Indiquez votre identifiant.' });
+      if (!pw.input.value) errs.push({ field: pw, msg: 'Indiquez votre mot de passe.' });
+      if (errs.length) return showErrors(box, errs);
+      box.hidden = true; btn.disabled = true;
+      api('POST', '/api/login', { username: id.input.value.trim(), password: pw.input.value }).then(function (r) {
+        btn.disabled = false;
+        if (r.ok) {
+          me = r.json.user; flash = 'Connexion réussie. Bonjour ' + me.prenom + ' !';
+          var next = afterLogin || '#liste'; afterLogin = '';
+          if (next !== '#liste') flash = '';
+          renderNav(); return go(next);
+        }
+        pw.input.value = '';
+        id.input.setAttribute('aria-invalid', 'true');
+        showErrors(box, [{ field: pw, msg: r.json.erreur || 'Connexion impossible.' }], 'Connexion refusée');
+      }, function () {
+        btn.disabled = false;
+        networkMessage(box, 'Vous êtes hors connexion : impossible de vous connecter.');
+      });
+    });
+    setView('Connexion', [el('h1', { text: 'Se connecter' }),
+      el('p', { 'class': 'lead', text: "Un compte n'est utile que pour publier ou gérer vos annonces." }), box, form,
+      el('p', { 'class': 'note' }, [document.createTextNode('Pas encore de compte ? '), el('a', { href: '#inscription', text: 'Créer un compte' })])]);
+  }
+
+  // ---- inscription ----
+  function renderRegister() {
+    if (me) return go('#liste');
+    var f = {
+      username: field({ id: 'r-username', label: 'Identifiant', autocomplete: 'username', autocapitalize: 'none', spellcheck: 'false', hint: '3 à 30 caractères : minuscules, chiffres, tiret ou souligné.' }),
+      password: field({ id: 'r-password', label: 'Mot de passe', type: 'password', autocomplete: 'new-password', hint: '8 caractères minimum.' }),
+      prenom: field({ id: 'r-prenom', label: 'Prénom', autocomplete: 'given-name', maxlength: '40', hint: 'Affiché sur vos annonces.' }),
+      value: field({ id: 'r-contact', label: 'Votre contact', type: 'email', autocomplete: 'email', hint: 'Format attendu : prenom@exemple.fr. Affiché seulement quand un élève le demande.' })
+    };
+    var radios = ['email', 'tel'].map(function (v) {
+      var r = el('input', { type: 'radio', name: 'r-type', value: v, id: 'r-type-' + v });
+      if (v === 'email') r.checked = true;
+      return { v: v, r: r };
+    });
+    function setType() {
+      var tel = radios[1].r.checked;
+      f.value.input.type = tel ? 'tel' : 'email';
+      f.value.input.setAttribute('autocomplete', tel ? 'tel' : 'email');
+      document.getElementById('r-contact-hint').textContent = tel
+        ? 'Format attendu : 06 12 34 56 78. Affiché seulement quand un élève le demande.'
+        : 'Format attendu : prenom@exemple.fr. Affiché seulement quand un élève le demande.';
+    }
+    var choice = el('fieldset', { 'class': 'choices' }, [el('legend', { text: 'Moyen de contact (obligatoire)' })].concat(radios.map(function (x) {
+      x.r.addEventListener('change', setType);
+      return el('label', { 'class': 'choice', 'for': 'r-type-' + x.v }, [x.r, document.createTextNode(x.v === 'email' ? 'Email' : 'Téléphone')]);
+    })));
+    var box = summary();
+    var btn = el('button', { 'class': 'btn btn-primary', type: 'submit', text: 'Créer mon compte' });
+    var form = el('form', { 'class': 'card-form', novalidate: 'novalidate' },
+      [f.username.wrap, f.password.wrap, f.prenom.wrap, choice, f.value.wrap, btn]);
+    form.addEventListener('submit', function (ev) {
+      ev.preventDefault();
+      Object.keys(f).forEach(function (k) { f[k].clear(); });
+      var errs = [];
+      if (!/^[a-z0-9_-]{3,30}$/.test(f.username.input.value.trim())) errs.push({ field: f.username, msg: 'Identifiant : 3 à 30 caractères, minuscules, chiffres, tiret ou souligné.' });
+      if (f.password.input.value.length < 8) errs.push({ field: f.password, msg: 'Mot de passe : 8 caractères minimum.' });
+      if (!f.prenom.input.value.trim()) errs.push({ field: f.prenom, msg: 'Indiquez votre prénom.' });
+      if (!f.value.input.value.trim()) errs.push({ field: f.value, msg: radios[1].r.checked ? 'Indiquez votre téléphone.' : 'Indiquez votre email.' });
+      if (errs.length) return showErrors(box, errs);
+      box.hidden = true; btn.disabled = true;
+      api('POST', '/api/register', {
+        username: f.username.input.value.trim(), password: f.password.input.value, prenom: f.prenom.input.value.trim(),
+        contact_type: radios[1].r.checked ? 'tel' : 'email', contact_value: f.value.input.value.trim()
+      }).then(function (r) {
+        btn.disabled = false;
+        if (r.ok) {
+          me = r.json.user; flash = 'Compte créé. Bonjour ' + me.prenom + ' ! Vous pouvez publier une annonce.';
+          renderNav(); return go('#liste');
+        }
+        var list = fromServer(r.json.erreurs, { username: f.username, password: f.password, prenom: f.prenom, contact_value: f.value });
+        if (list.length) showErrors(box, list); else networkMessage(box, r.json.erreur || 'Inscription impossible, réessayez.');
+      }, function () {
+        btn.disabled = false;
+        networkMessage(box, 'Vous êtes hors connexion : impossible de créer le compte.');
+      });
+    });
+    setView('Créer un compte', [el('h1', { text: 'Créer un compte' }),
+      el('p', { 'class': 'lead', text: 'Un compte permet de publier et de clôturer vos annonces. Tous les champs sont obligatoires.' }), box, form,
+      el('p', { 'class': 'note' }, [document.createTextNode('Déjà un compte ? '), el('a', { href: '#connexion', text: 'Se connecter' })])]);
+  }
+
+  // ---- publier une annonce (US4 / US6 : en ligne immédiatement) ----
+  function renderPublish() {
+    var f = {
+      titre: field({ id: 'p-titre', label: 'Titre', maxlength: '80', counter: 80 }),
+      desc: field({ id: 'p-desc', label: 'Description', textarea: true, maxlength: '1000', counter: 1000 }),
+      prix: field({ id: 'p-prix', label: 'Prix en euros', inputmode: 'decimal', autocomplete: 'off', hint: 'Format attendu : 12 ou 12,50. Laissez vide si c’est un don.' })
+    };
+    f.prix.wrap.querySelector('label').textContent = 'Prix en euros (obligatoire, sauf don)';
+    var don = el('input', { type: 'checkbox', id: 'p-don' });
+    var donLabel = el('label', { 'class': 'choice', 'for': 'p-don' }, [don, document.createTextNode("C'est un don")]);
+    don.addEventListener('change', function () {
+      f.prix.input.disabled = don.checked;
+      if (don.checked) { f.prix.input.value = ''; f.prix.clear(); }
+    });
+    var catSel = el('select', { id: 'p-cat', 'aria-required': 'true', 'aria-describedby': 'p-cat-err' },
+      [option('', 'Choisir une catégorie', true)].concat(CATEGORIES.map(function (c) { return option(c, c, false); })));
+    var catErr = el('p', { 'class': 'err', id: 'p-cat-err', hidden: 'hidden' });
+    var cat = {
+      id: 'p-cat', input: catSel,
+      setError: function (m) { catErr.textContent = '⚠ ' + m; catErr.hidden = false; catSel.setAttribute('aria-invalid', 'true'); },
+      clear: function () { catErr.hidden = true; catSel.removeAttribute('aria-invalid'); }
+    };
+    var box = summary();
+    var btn = el('button', { 'class': 'btn btn-primary', type: 'submit', text: 'Publier' });
+    var contactNote = el('p', { 'class': 'note', text: 'Les élèves verront votre ' + (me.contact.type === 'email' ? 'email' : 'téléphone') + ' (' + me.contact.valeur + ') uniquement s’ils demandent à l’afficher.' });
+    var form = el('form', { 'class': 'card-form', novalidate: 'novalidate' }, [
+      el('p', { 'class': 'lead', text: 'Tous les champs sont obligatoires. Texte uniquement : pas de photo, pour une application légère.' }),
+      f.titre.wrap, f.desc.wrap, f.prix.wrap, donLabel,
+      el('div', { 'class': 'field' }, [el('label', { 'for': 'p-cat', text: 'Catégorie (obligatoire)' }), catSel, catErr]),
+      contactNote, btn]);
+    form.addEventListener('submit', function (ev) {
+      ev.preventDefault();
+      [f.titre, f.desc, f.prix, cat].forEach(function (x) { x.clear(); });
+      var errs = [];
+      var titre = f.titre.input.value.trim(), desc = f.desc.input.value.trim();
+      var prix = f.prix.input.value.trim().replace(',', '.');
+      if (!titre) errs.push({ field: f.titre, msg: 'Indiquez un titre.' });
+      if (!desc) errs.push({ field: f.desc, msg: 'Ajoutez une description.' });
+      var p = Number(prix);
+      if (!don.checked && (!prix || !isFinite(p) || p <= 0 || p > 9999)) errs.push({ field: f.prix, msg: 'Indiquez un prix (de 0,01 à 9 999 €) ou cochez « C’est un don ».' });
+      if (!catSel.value) errs.push({ field: cat, msg: 'Choisissez une catégorie.' });
+      if (errs.length) return showErrors(box, errs);
+      box.hidden = true; btn.disabled = true; btn.textContent = 'Publication…';
+      var body = { titre: titre, description: desc, categorie: catSel.value };
+      if (don.checked) body.don = true; else body.prix = p;
+      api('POST', '/api/annonces', body).then(function (r) {
+        btn.disabled = false; btn.textContent = 'Publier';
+        if (r.ok) {
+          try { Object.keys(localStorage).forEach(function (k) { if (k.indexOf('rp:list:') === 0) localStorage.removeItem(k); }); } catch (e) { /* ignoré */ }
+          flash = 'Votre annonce est en ligne : elle apparaît en tête de la liste.';
+          return go('#liste');
+        }
+        if (r.status === 401) { me = null; renderNav(); afterLogin = '#publier'; return go('#connexion'); }
+        var list = fromServer(r.json.erreurs, { titre: f.titre, description: f.desc, prix: f.prix, categorie: cat });
+        if (list.length) showErrors(box, list); else networkMessage(box, 'Publication impossible, réessayez.');
+      }, function () {
+        btn.disabled = false; btn.textContent = 'Publier';
+        networkMessage(box, 'Vous êtes hors connexion : l’annonce n’a pas été publiée. Vos champs sont conservés, réessayez avec du réseau.');
+      });
+    });
+    setView('Publier une annonce', [el('h1', { text: 'Publier une annonce' }), box, form]);
+  }
+
   // ---- routage par ancre ----
   var previous = null;
   function route() {
     var h = location.hash;
     var parts = h.split('?');
     var m;
+    renderNav();
+    if (parts[0] === '#connexion' || parts[0] === '#inscription') {
+      previous = null;
+      return meP.then(parts[0] === '#connexion' ? renderLogin : renderRegister);
+    }
+    if (parts[0] === '#publier') {
+      previous = null;
+      return meP.then(function () {
+        if (!me) { afterLogin = '#publier'; return go('#connexion'); }
+        renderPublish();
+      });
+    }
     if ((m = /^#annonce-(\d+)$/.exec(parts[0]))) {
       previous = null;
       renderDetail(m[1], parseState(parts[1]));

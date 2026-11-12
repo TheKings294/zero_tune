@@ -22,3 +22,9 @@ CREATE TABLE IF NOT EXISTS annonces (
 );
 
 CREATE INDEX IF NOT EXISTS idx_annonces_statut_date ON annonces (statut, created_at DESC);
+
+CREATE TABLE IF NOT EXISTS sessions (
+  token_hash TEXT PRIMARY KEY,
+  user_id    INTEGER NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+  expires_at INTEGER NOT NULL
+);

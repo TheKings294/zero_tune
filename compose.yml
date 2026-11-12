@@ -8,5 +8,7 @@ services:
     environment:
       SEED_DEMO: "${SEED_DEMO:-1}"
       DEMO_PASSWORD: "${DEMO_PASSWORD:-demo}"
+      # 1 dès que le site est servi en HTTPS (cookie de session « Secure »)
+      COOKIE_SECURE: "${COOKIE_SECURE:-0}"
     volumes:
       - ./data:/data

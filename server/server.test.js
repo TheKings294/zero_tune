@@ -167,3 +167,133 @@ test('US3 contact : 404 si annonce inconnue, invalide ou clôturée', async () =
   assert.equal((await get(`/api/annonces/${id}/contact`)).statusCode, 404);
   db.prepare("UPDATE annonces SET statut = 'active' WHERE id = ?").run(id);
 });
+
+// ---------- US4 : comptes et publication ----------
+const post = (url, payload, cookie) => app.inject({ method: 'POST', url, payload, headers: cookie ? { cookie } : {} });
+const cookieOf = (res) => res.headers['set-cookie'].split(';')[0];
+const NEW = { titre: 'Règle en métal 30 cm', description: 'Comme neuve.', prix: 2.5, categorie: 'Fournitures' };
+
+async function login(username = 'catherine', password = 'demo') {
+  const res = await post('/api/login', { username, password });
+  return { res, cookie: res.statusCode === 200 ? cookieOf(res) : null };
+}
+
+test('US4 login : bons identifiants → cookie HttpOnly SameSite, /api/me renvoie le compte', async () => {
+  const { res, cookie } = await login();
+  assert.equal(res.statusCode, 200);
+  assert.match(res.headers['set-cookie'], /HttpOnly/i);
+  assert.match(res.headers['set-cookie'], /SameSite=Lax/i);
+  const me = (await app.inject({ url: '/api/me', headers: { cookie } })).json();
+  assert.equal(me.user.prenom, 'Catherine');
+  assert.deepEqual(me.user.contact, { type: 'email', valeur: 'catherine.l@exemple.fr' });
+  assert.ok(!JSON.stringify(me).includes('hash'));
+});
+
+test('US4 login : mauvais mot de passe et identifiant inconnu → même message 401', async () => {
+  const a = await post('/api/login', { username: 'catherine', password: 'faux' });
+  const b = await post('/api/login', { username: 'inconnu', password: 'faux' });
+  assert.equal(a.statusCode, 401);
+  assert.equal(a.json().erreur, b.json().erreur);
+});
+
+test('US4 /api/me sans session : user null, jamais mis en cache', async () => {
+  const res = await get('/api/me');
+  assert.equal(res.json().user, null);
+  assert.equal(res.headers['cache-control'], 'no-store');
+});
+
+test('US4 register : compte créé et connecté, mot de passe haché, contact enregistré dans users', async () => {
+  const res = await post('/api/register', { username: 'nouvelle', password: 'motdepasse1', prenom: 'Nina', contact_type: 'tel', contact_value: '0612345678' });
+  assert.equal(res.statusCode, 201);
+  assert.equal(res.json().user.contact.valeur, '06 12 34 56 78');
+  const row = db.prepare("SELECT password_hash, contact_type FROM users WHERE username = 'nouvelle'").get();
+  assert.match(row.password_hash, /^scrypt\$/);
+  assert.equal(row.contact_type, 'tel');
+  assert.ok((await app.inject({ url: '/api/me', headers: { cookie: cookieOf(res) } })).json().user);
+});
+
+test('US4 register : erreurs par champ (422), identifiant déjà pris (409)', async () => {
+  const bad = await post('/api/register', { username: 'A', password: 'court', prenom: '', contact_type: 'email', contact_value: 'pas-un-mail' });
+  assert.equal(bad.statusCode, 422);
+  assert.deepEqual(Object.keys(bad.json().erreurs).sort(), ['contact_value', 'password', 'prenom', 'username']);
+  const dup = await post('/api/register', { username: 'catherine', password: 'motdepasse1', prenom: 'X', contact_type: 'email', contact_value: 'x@y.fr' });
+  assert.equal(dup.statusCode, 409);
+});
+
+test('US4 publier : connexion requise (401)', async () => {
+  assert.equal((await post('/api/annonces', NEW)).statusCode, 401);
+});
+
+test('US4 publier : annonce en ligne immédiatement et en tête de liste (US6)', async () => {
+  const { cookie } = await login();
+  await get('/api/annonces'); // met la liste en cache serveur
+  const res = await post('/api/annonces', NEW, cookie);
+  assert.equal(res.statusCode, 201);
+  const { items, total } = (await get('/api/annonces')).json();
+  assert.equal(items[0].id, res.json().id);
+  assert.equal(items[0].titre, NEW.titre);
+  assert.equal(items[0].prix_cents, 250);
+  assert.equal(total, 21);
+  assert.equal(db.prepare('SELECT statut FROM annonces WHERE id = ?').get(res.json().id).statut, 'active');
+});
+
+test('US4 publier : don (prix absent) accepté, annonce rattachée au compte connecté', async () => {
+  const { cookie } = await login('kevin');
+  const res = await post('/api/annonces', { ...NEW, titre: 'Don de stylos', prix: undefined, don: true }, cookie);
+  assert.equal(res.statusCode, 201);
+  const row = db.prepare('SELECT a.prix_cents, u.username FROM annonces a JOIN users u ON u.id = a.user_id WHERE a.id = ?').get(res.json().id);
+  assert.deepEqual({ ...row }, { prix_cents: null, username: 'kevin' });
+});
+
+test('US4 publier : champs vides refusés, messages par champ, rien n’est créé', async () => {
+  const { cookie } = await login();
+  const before = db.prepare('SELECT COUNT(*) n FROM annonces').get().n;
+  const res = await post('/api/annonces', { titre: '  ', description: '', categorie: '' }, cookie);
+  assert.equal(res.statusCode, 422);
+  assert.deepEqual(Object.keys(res.json().erreurs).sort(), ['categorie', 'description', 'prix', 'titre']);
+  assert.equal(db.prepare('SELECT COUNT(*) n FROM annonces').get().n, before);
+});
+
+test('US4 publier : limites 80 / 1 000 caractères, prix invalide, catégorie inconnue', async () => {
+  const { cookie } = await login();
+  const long = await post('/api/annonces', { ...NEW, titre: 'a'.repeat(81), description: 'b'.repeat(1001) }, cookie);
+  assert.deepEqual(Object.keys(long.json().erreurs).sort(), ['description', 'titre']);
+  const ok = await post('/api/annonces', { ...NEW, titre: 'a'.repeat(80), description: 'b'.repeat(1000) }, cookie);
+  assert.equal(ok.statusCode, 201);
+  for (const prix of [0, -3, '5', null, 1e9]) {
+    assert.equal((await post('/api/annonces', { ...NEW, prix }, cookie)).statusCode, 422, `prix ${prix}`);
+  }
+  assert.equal((await post('/api/annonces', { ...NEW, categorie: 'Cuisine' }, cookie)).statusCode, 422);
+});
+
+test('US4 publier : texte uniquement — corps limité à 16 Ko, JSON seulement', async () => {
+  const { cookie } = await login();
+  const big = await app.inject({ method: 'POST', url: '/api/annonces', headers: { cookie, 'content-type': 'application/json' }, payload: JSON.stringify({ ...NEW, description: 'x'.repeat(20000) }) });
+  assert.equal(big.statusCode, 413);
+  const form = await app.inject({ method: 'POST', url: '/api/annonces', headers: { cookie, 'content-type': 'application/x-www-form-urlencoded' }, payload: 'titre=x' });
+  assert.equal(form.statusCode, 415);
+  const multi = await app.inject({ method: 'POST', url: '/api/annonces', headers: { cookie, 'content-type': 'multipart/form-data; boundary=x' }, payload: '--x--' });
+  assert.equal(multi.statusCode, 415);
+});
+
+test('US4 publier : le texte reste du texte (pas de HTML interprété côté serveur, injection SQL inerte)', async () => {
+  const { cookie } = await login();
+  const t = "<img src=x onerror=alert(1)>'; DROP TABLE annonces;--";
+  const res = await post('/api/annonces', { ...NEW, titre: t }, cookie);
+  assert.equal(res.statusCode, 201);
+  assert.equal((await get(`/api/annonces/${res.json().id}`)).json().titre, t);
+});
+
+test('US4 logout : session supprimée', async () => {
+  const { cookie } = await login();
+  assert.equal((await post('/api/logout', undefined, cookie)).statusCode, 204);
+  assert.equal((await app.inject({ url: '/api/me', headers: { cookie } })).json().user, null);
+  assert.equal((await post('/api/annonces', NEW, cookie)).statusCode, 401);
+});
+
+test('US4 login : 10 échecs → 429 (freinage), même avec le bon mot de passe ensuite', async () => {
+  const fresh = await buildApp(db);
+  const p = (payload) => fresh.inject({ method: 'POST', url: '/api/login', payload, remoteAddress: '10.9.9.9' });
+  for (let i = 0; i < 10; i++) assert.equal((await p({ username: 'kevin', password: 'x' })).statusCode, 401);
+  assert.equal((await p({ username: 'kevin', password: 'demo' })).statusCode, 429);
+});

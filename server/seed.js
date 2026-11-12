@@ -1,10 +1,5 @@
-import { randomBytes, scryptSync } from 'node:crypto';
+import { hashPassword } from './auth.js';
 import { openDb } from './db.js';
-
-const hash = (pw) => {
-  const salt = randomBytes(16);
-  return `scrypt$${salt.toString('hex')}$${scryptSync(pw, salt, 32).toString('hex')}`;
-};
 
 const USERS = [
   ['mehdi', 'Mehdi', 'email', 'mehdi.b@exemple.fr'],
@@ -52,10 +47,10 @@ export function seed(db, { password = process.env.DEMO_PASSWORD || 'demo', now =
   const insAnn = db.prepare(
     'INSERT INTO annonces (user_id, titre, description, prix_cents, categorie, created_at) VALUES (?, ?, ?, ?, ?, ?)');
   db.transaction(() => {
-    db.exec('DELETE FROM annonces; DELETE FROM users;');
+    db.exec('DELETE FROM annonces; DELETE FROM users;'); // les sessions suivent (ON DELETE CASCADE)
     const ids = {};
     for (const [username, first, type, value] of USERS) {
-      ids[username] = insUser.run(username, hash(password), first, type, value).lastInsertRowid;
+      ids[username] = insUser.run(username, hashPassword(password), first, type, value).lastInsertRowid;
     }
     for (const [owner, titre, prix, cat, days, desc] of ANNONCES) {
       const at = new Date(now - days * 86400000).toISOString();

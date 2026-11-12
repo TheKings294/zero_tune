@@ -56,3 +56,27 @@ select{width:100%;min-height:44px;padding:8px 10px;font:inherit;color:#1A1C1B;ba
 .btn-primary:hover{background:#123F28;border-color:#123F28}
 .btn[disabled]{border-color:#8A918D;color:#545B57;background:#EEF0EF;cursor:not-allowed}
 .err{margin:8px 0 0;color:#B3261E;font-weight:600}
+.head{display:flex;flex-wrap:wrap;gap:4px 16px;align-items:center;justify-content:space-between}
+.head .tagline{flex-basis:100%;order:3}
+.nav{list-style:none;margin:0;padding:0;display:flex;flex-wrap:wrap;gap:4px;align-items:center}
+.navlink{display:inline-flex;align-items:center;min-height:44px;padding:8px 12px;border:2px solid transparent;border-radius:8px;background:none;color:#1B5E3B;font:inherit;font-weight:600;text-decoration:underline;text-underline-offset:3px;cursor:pointer}
+.navlink:hover{background:#E8F2EC;color:#123F28}
+.navlink[aria-current]{border-color:#1B5E3B;text-decoration:none}
+.session{margin:0;width:100%;order:4;font-size:15px;color:#4A504C}
+.card-form{background:#fff;border:1px solid #C9CFCB;border-radius:12px;padding:18px 16px;display:flex;flex-direction:column;gap:16px;margin-top:12px}
+.card-form .lead{margin:0}
+.field input,.field textarea{width:100%;min-height:44px;padding:8px 10px;font:inherit;color:#1A1C1B;background:#fff;border:2px solid #6B716D;border-radius:8px}
+.field textarea{min-height:140px;resize:vertical}
+input:disabled{background:#EEF0EF;border-color:#8A918D;color:#545B57}
+[aria-invalid="true"]{border-color:#B3261E !important}
+.hint{margin:4px 0 0;font-size:16px;color:#4A504C}
+.err{font-weight:600}
+.summary{background:#fff;border:2px solid #B3261E;border-radius:10px;padding:12px 16px;margin-top:12px}
+.summary h2{margin:0 0 6px;font-size:18px;color:#B3261E}
+.summary ul{margin:0;padding-left:20px}
+.summary a{color:#8C1D18}
+.banner{margin:0 0 16px;padding:12px 14px;background:#E3F1E8;border:2px solid #1B5E3B;border-radius:10px;color:#14502F;font-weight:600}
+.choices{border:0;margin:0;padding:0}
+.choices legend{font-weight:600;padding:0;margin-bottom:4px}
+.choice{display:flex;align-items:center;gap:10px;min-height:44px;font-weight:600;cursor:pointer;margin:0}
+.choice input{width:22px;height:22px;margin:0;accent-color:#1B5E3B;flex:none}
