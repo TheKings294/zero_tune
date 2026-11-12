@@ -25,7 +25,8 @@ const SITE = fileURLToPath(new URL('../site/', import.meta.url));
 
 export async function buildApp(db) {
   // Requêtes allégées : texte uniquement, 16 Ko maximum ; seul application/json est accepté (415 sinon, ce qui bloque aussi les formulaires venus d'un autre site).
-  const app = Fastify({ bodyLimit: 16 * 1024 });
+  const trustProxy = process.env.TRUST_PROXY || false;
+  const app = Fastify({ bodyLimit: 16 * 1024, trustProxy });
   await app.register(compress);
   await app.register(etag);
   await app.register(cookie);

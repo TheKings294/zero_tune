@@ -22,5 +22,15 @@ services:
       RETENTION_IMPACT_DAYS: "${RETENTION_IMPACT_DAYS:-730}"
       # 1 dès que le site est servi en HTTPS (cookie de session « Secure »)
       COOKIE_SECURE: "${COOKIE_SECURE:-0}"
+      TRUST_PROXY: "${TRUST_PROXY:-}"
     volumes:
       - ./data:/data
+    networks:
+      default:
+      proxy:
+        aliases:
+          - zerotune
+
+networks:
+  proxy:
+    external: true
