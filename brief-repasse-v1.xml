@@ -1,0 +1,342 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<brief projet="Repasse" version="V1" type="maquette-interactive" date="2026-11-12" langue="fr">
+
+  <!-- ============================================================ -->
+  <!-- 1. MISSION                                                    -->
+  <!-- ============================================================ -->
+  <mission>
+    <livrable>Maquette interactive cliquable (prototype visuel, sans vraie logique applicative) réalisée dans Claude Design</livrable>
+    <perimetre>Uniquement les fonctionnalités de la V1</perimetre>
+    <usage>Usage interne à l'équipe (pas de soutenance prévue)</usage>
+    <sources>
+      <source id="doc1" auteur="Groupe 1.5 — Faten EL OUTA" date="2026-11-10">Pilotage d'un produit numérique — Numérique Responsable, Jour 2</source>
+      <source id="doc2" auteur="Camille PINAULT, Faten El Outa" date="2026-11-09">Rendu de projet — Jour 1 et Jour 2</source>
+    </sources>
+    <regle-arbitrage>Fusion des deux documents : en cas de conflit, la règle la plus stricte est retenue.</regle-arbitrage>
+  </mission>
+
+  <!-- ============================================================ -->
+  <!-- 2. CONTEXTE PRODUIT                                           -->
+  <!-- ============================================================ -->
+  <contexte>
+    <nom>Repasse</nom>
+    <sous-titre>Le matériel du lycée passe de main en main</sous-titre>
+    <format>PWA mobile-first, accessible via un lien, sans installation</format>
+    <commanditaire>Bureau des Étudiants (BDE)</commanditaire>
+    <probleme>Des élèves jettent ou stockent du matériel scolaire et informatique encore fonctionnel, tandis que d'autres n'ont pas les moyens de s'équiper. Les annonces se perdent dans les groupes de discussion (Insta, Snap, Discord) et ne touchent pas tout le campus.</probleme>
+    <vision>Faire en sorte que le matériel fonctionnel ne soit pas jeté dans l'établissement et reste accessible à tous, quel que soit l'âge ou le téléphone.</vision>
+    <cible>Élèves du campus et personnel éducatif, avec une attention particulière portée au persona contraint (Kevin)</cible>
+    <objectifs>
+      <objectif>40 % d'utilisation générale</objectif>
+      <objectif>100 échanges réalisés sur 1 an</objectif>
+    </objectifs>
+
+    <personas>
+      <persona id="kevin" contraint="true">
+        <identite>Kevin, 16 ans, famille aux revenus très modestes</identite>
+        <objectif>S'équiper correctement sans se ruiner ; l'occasion ne le gêne pas</objectif>
+        <appareil>Téléphone de 15 ans ayant appartenu à son père</appareil>
+        <connexion>4G (forfait souvent épuisé), wifi du lycée, ADSL</connexion>
+        <ressenti>Peur d'être stigmatisé, souhaite une solution discrète</ressenti>
+        <impact-design>Guide toutes les décisions : légèreté, compatibilité, discrétion</impact-design>
+      </persona>
+      <persona id="catherine">
+        <identite>Catherine, 18 ans, vient d'avoir son bac, part à Sciences Po</identite>
+        <objectif>Donner ou vendre son matériel avant de partir</objectif>
+        <appareil>iPhone récent, 5G</appareil>
+        <contrainte>N'a pas le temps de gérer des dizaines de messages</contrainte>
+      </persona>
+      <persona id="carole">
+        <identite>Carole, 17 ans, en première, membre du BDE</identite>
+        <objectif>Un outil officiel qui tourne tout seul</objectif>
+        <contrainte>Pas de validation manuelle : les annonces sont publiées immédiatement</contrainte>
+      </persona>
+    </personas>
+  </contexte>
+
+  <!-- ============================================================ -->
+  <!-- 3. DÉCISIONS D'ARBITRAGE                                      -->
+  <!-- ============================================================ -->
+  <decisions>
+    <decision sujet="Document de référence" choix="Fusion doc1 + doc2, règle la plus stricte"/>
+    <decision sujet="Poids par page" choix="≤ 500 Ko" origine="doc2 (doc1 : &lt; 1 Mo)"/>
+    <decision sujet="Requêtes par page" choix="≤ 15"/>
+    <decision sujet="Temps d'affichage" choix="&lt; 3 s en 3G, &lt; 1 s en 4G"/>
+    <decision sujet="EcoIndex" choix="A ou B"/>
+    <decision sujet="Défilement" choix="Pagination, pas de scroll infini"/>
+    <decision sujet="Liste" choix="Annonces actives uniquement, de la plus récente à la plus ancienne, filtre par catégorie"/>
+    <decision sujet="Photo dans l'annonce" choix="Aucune : texte uniquement" origine="doc1"/>
+    <decision sujet="Moyen de contact" choix="Au choix du vendeur : email OU téléphone"/>
+    <decision sujet="Comptes" choix="Faux écran de connexion, identifiants en dur"/>
+    <decision sujet="Clôture d'annonce" choix="Incluse, rattachée au compte connecté"/>
+    <decision sujet="Suppression par la modératrice" choix="Exclue (V3)"/>
+    <decision sujet="Favoris / likes" choix="Exclus (V3)"/>
+    <decision sujet="Mise en cache de la liste" choix="Incluse, simulée visuellement (pas de vrai Service Worker dans une maquette)"/>
+    <decision sujet="Panneau Performance" choix="Inclus, valeurs de démonstration"/>
+    <decision sujet="Livrable accessibilité" choix="Code conforme uniquement, sans déclaration ni tableau de critères"/>
+    <decision sujet="Identité visuelle" choix="Nom et charte sobre proposés par Claude"/>
+    <decision sujet="Mode sombre" choix="Non"/>
+  </decisions>
+
+  <!-- ============================================================ -->
+  <!-- 4. TECHNIQUE ET SOBRIÉTÉ                                      -->
+  <!-- ============================================================ -->
+  <technique>
+    <stack>Esprit HTML + CSS + JavaScript vanilla, sans framework</stack>
+    <outil>Claude Design</outil>
+    <regles-sobriete>
+      <regle>Police système uniquement, aucune web font</regle>
+      <regle>Aucune image ni photo, aucune bibliothèque d'icônes ; au plus quelques icônes SVG inline très simples, sinon du texte</regle>
+      <regle>Aucune animation, vidéo ni son en lecture automatique ; transitions minimales ou absentes</regle>
+      <regle>Mode clair uniquement</regle>
+      <regle>Pagination, pas de scroll infini</regle>
+      <regle>Aucune ressource chargée sans être utilisée</regle>
+    </regles-sobriete>
+    <charte>
+      <fond>Blanc ou très clair</fond>
+      <accent>Une couleur d'accent contrastée (par exemple un vert foncé)</accent>
+      <typographie>Lisible, 16 px minimum pour le corps de texte</typographie>
+    </charte>
+    <compatibilite>
+      <appareil>Samsung S7</appareil>
+      <appareil>iPhone 8</appareil>
+      <note>Anciennes versions d'iOS et d'Android</note>
+    </compatibilite>
+  </technique>
+
+  <!-- ============================================================ -->
+  <!-- 5. TABLEAU DE PERFORMANCE ET DEFINITION OF DONE VERTE         -->
+  <!-- ============================================================ -->
+  <performance>
+    <tableau>
+      <indicateur nom="Poids par page" cible="≤ 500 Ko" outil="F12 > Outils de développement" justification="Économise les forfaits et la consommation"/>
+      <indicateur nom="Requêtes par page" cible="≤ 15" outil="F12 > Réseau"/>
+      <indicateur nom="Temps d'affichage" cible="&lt; 3 s en 3G, &lt; 1 s en 4G" outil="Samsung S7" justification="Que l'utilisateur reste et ne parte pas"/>
+      <indicateur nom="Score EcoIndex" cible="A ou B" outil="ecoindex.fr" justification="Mesure l'impact environnemental"/>
+      <indicateur nom="Compatibilité" cible="Fonctionne sur d'anciens iOS et Android" outil="Samsung S7 / iPhone 8" justification="Inclure un maximum d'utilisateurs"/>
+    </tableau>
+    <definition-of-done-verte>
+      <critere n="1">Toutes les pages se chargent en moins de 3 s en 3G et en moins de 1 s en 4G</critere>
+      <critere n="2">Moins de 500 Ko par page</critere>
+      <critere n="3">Score EcoIndex A ou B minimum</critere>
+      <critere n="4">Une page fait moins de 15 requêtes</critere>
+      <critere n="5">Aucune ressource n'est chargée sans être utilisée</critere>
+    </definition-of-done-verte>
+  </performance>
+
+  <!-- ============================================================ -->
+  <!-- 6. DONNÉES DE DÉMO                                            -->
+  <!-- ============================================================ -->
+  <donnees-demo>
+    <annonces quantite="20" format="texte uniquement">
+      <exemples>Calculatrice graphique, annales de bac, dictionnaire d'anglais, blouse de chimie, kit de géométrie, clé USB, manuels scolaires</exemples>
+      <repartition-prix>Environ un tiers en « Don », les autres entre 1 € et 40 €</repartition-prix>
+      <dates>Variées</dates>
+      <contact>Chaque annonce a un moyen de contact choisi par le vendeur : email OU téléphone</contact>
+    </annonces>
+    <categories>
+      <categorie>Mathématiques</categorie>
+      <categorie>Français</categorie>
+      <categorie>Langues</categorie>
+      <categorie>Sciences</categorie>
+      <categorie>Histoire-Géo</categorie>
+      <categorie>Informatique</categorie>
+      <categorie>Calculatrices</categorie>
+      <categorie>Fournitures</categorie>
+      <categorie>Livres</categorie>
+      <categorie>Autre</categorie>
+    </categories>
+    <comptes affichage="Encart « Comptes de démo » sur l'écran de connexion">
+      <compte identifiant="catherine" mot-de-passe="demo" role="vendeuse">Possède déjà 3 annonces actives, dont une à clôturer pendant la démo</compte>
+      <compte identifiant="kevin" mot-de-passe="demo" role="élève">N'a encore rien publié</compte>
+    </comptes>
+  </donnees-demo>
+
+  <!-- ============================================================ -->
+  <!-- 7. USER STORIES V1                                            -->
+  <!-- ============================================================ -->
+  <user-stories>
+    <story id="US1" persona="kevin" moscow="Must" kano="Basique" valeur="5" effort="1" score="5">
+      <enonce>En tant que Kevin, je veux pouvoir consulter les annonces afin de réaliser un échange.</enonce>
+      <critere-acceptation>La page d'accueil affiche uniquement les annonces actives, triées de la plus récente à la plus ancienne.</critere-acceptation>
+      <critere-eco>Page légère, liste mise en cache</critere-eco>
+      <scenarios>
+        <scenario nom="Affichage de la liste des annonces">Quand Kevin accède à la page des annonces, alors la liste des annonces disponibles s'affiche.</scenario>
+        <scenario nom="Consultation du détail d'une annonce">Étant donné que la liste est affichée, quand Kevin clique sur une annonce, alors le détail de l'annonce s'affiche.</scenario>
+        <scenario nom="Mise en cache de la liste">Étant donné que Kevin a déjà chargé la liste, quand la liste est récupérée, alors elle est enregistrée dans le cache.</scenario>
+        <scenario nom="Affichage depuis le cache">Étant donné que la liste est en cache, quand Kevin revient sur la page des annonces, alors la liste s'affiche depuis le cache sans nouvel appel au serveur.</scenario>
+      </scenarios>
+    </story>
+
+    <story id="US2" persona="kevin" moscow="Must">
+      <enonce>En tant que Kevin, je veux filtrer la liste des annonces par matière afin de trouver rapidement le produit que je cherche au prix le plus bas.</enonce>
+      <scenarios>
+        <scenario nom="Affichage des résultats après filtre">Étant donné que je suis sur la page d'accueil, quand je sélectionne le filtre « Mathématiques », alors seules les annonces liées aux mathématiques s'affichent.</scenario>
+      </scenarios>
+    </story>
+
+    <story id="US3" persona="kevin" moscow="Must" kano="Indifférent" valeur="5" effort="1" score="5">
+      <enonce>En tant que Kevin, je veux révéler le contact du vendeur afin de conclure l'échange.</enonce>
+      <critere-acceptation>Clic sur l'annonce, puis sur le bouton : le contact (email ou téléphone) s'affiche.</critere-acceptation>
+      <critere-eco>Traitement simple, compatible 3G</critere-eco>
+    </story>
+
+    <story id="US4" persona="catherine" moscow="Must" kano="Basique" valeur="5" effort="1" score="5">
+      <enonce>En tant que Catherine, je veux pouvoir mettre en ligne des annonces afin de pouvoir m'en débarrasser.</enonce>
+      <critere-acceptation>Champs obligatoires : titre (80 caractères max), description (1 000 caractères max), prix ou mention « Don », catégorie, moyen de contact.</critere-acceptation>
+      <critere-eco>Pas d'image : texte uniquement</critere-eco>
+      <scenarios>
+        <scenario nom="Publication d'une annonce">Étant donné que Catherine remplit le formulaire, quand elle valide, alors l'annonce est publiée et apparaît dans la liste.</scenario>
+        <scenario nom="Publication refusée si formulaire incomplet">Étant donné qu'un champ obligatoire est vide, quand Catherine valide, alors l'annonce n'est pas publiée et un message indique les champs à compléter.</scenario>
+        <scenario nom="Annonce texte uniquement">Quand Catherine publie, alors l'annonce est enregistrée en texte et aucun fichier lourd (image, vidéo) n'est transmis.</scenario>
+        <scenario nom="Requête allégée">Quand Catherine valide, alors la requête ne contient que des données textuelles.</scenario>
+      </scenarios>
+    </story>
+
+    <story id="US5" persona="catherine" moscow="Must" kano="Basique" valeur="5" effort="1" score="5">
+      <enonce>En tant que Catherine, je veux pouvoir clôturer une annonce afin de pouvoir acter une vente.</enonce>
+      <critere-acceptation>L'annonce passe au statut « clôturée » et n'apparaît plus dans la liste publique. Le cache de la liste est invalidé.</critere-acceptation>
+      <critere-eco>Traitement simple, désengorgement des annonces périmées</critere-eco>
+      <scenarios>
+        <scenario nom="Clôture d'une annonce">Quand Catherine clôture son annonce, alors l'annonce passe au statut « clôturée » et la vente est actée.</scenario>
+        <scenario nom="Annonce clôturée non consultable">Quand un utilisateur consulte la liste, alors l'annonce clôturée n'y apparaît plus.</scenario>
+        <scenario nom="Allègement de la page d'accueil">Quand un utilisateur accède à l'accueil, alors seules les annonces en cours s'affichent et le volume de données est réduit.</scenario>
+      </scenarios>
+    </story>
+
+    <story id="US6" persona="carole" moscow="Must" kano="Basique" valeur="4" effort="1" score="4">
+      <enonce>En tant que Carole, je veux que les annonces soient publiées instantanément sans validation, afin de ne pas passer mon temps libre à modérer la plateforme.</enonce>
+      <critere-acceptation>Clic sur « Ajouter », formulaire rempli entièrement, clic sur « Créer l'annonce » : l'annonce est en ligne immédiatement.</critere-acceptation>
+    </story>
+  </user-stories>
+
+  <!-- ============================================================ -->
+  <!-- 8. ÉCRANS ET INTERACTIONS                                     -->
+  <!-- ============================================================ -->
+  <ecrans>
+    <ecran id="accueil" titre="Annonces" acces="public" stories="US1 US2">
+      <element>En-tête : nom de l'app, lien d'évitement « Aller au contenu », bouton « Se connecter » (ou « Publier » et « Mes annonces » une fois connecté)</element>
+      <element>Uniquement les annonces actives, de la plus récente à la plus ancienne par défaut</element>
+      <element>Filtre par catégorie : liste déroulante avec un vrai label ; le scénario « Mathématiques » doit être cliquable</element>
+      <element>Tri secondaire : « Plus récentes » / « Prix croissant » (les dons en premier)</element>
+      <element>Carte d'annonce texte : titre, prix ou badge « Don », catégorie, date relative ; toute la carte est un lien vers le détail</element>
+      <element>Pagination : 8 annonces par page, Précédent / 1 / 2 / 3 / Suivant, page courante signalée visuellement et via aria-current</element>
+      <element>Indicateur discret au retour sur l'accueil : « Liste chargée depuis le cache — aucune nouvelle requête »</element>
+      <element>Message d'état vide si un filtre ne renvoie rien</element>
+    </ecran>
+
+    <ecran id="detail" titre="Détail de l'annonce" acces="public" stories="US1 US3">
+      <element>Titre, prix ou « Don », catégorie, date, prénom du vendeur, description complète</element>
+      <element>Bouton « Afficher le contact » : révèle l'email ou le téléphone (lien mailto: ou tel:), annoncé aux lecteurs d'écran</element>
+      <element>Lien « Retour aux annonces » qui conserve le filtre et la page</element>
+    </ecran>
+
+    <ecran id="connexion" titre="Connexion" acces="public">
+      <element>Champs identifiant et mot de passe avec labels visibles, bouton « Se connecter »</element>
+      <element>Erreur si identifiants faux : message explicite lié au champ et annoncé</element>
+      <element>Encart « Comptes de démo » listant les identifiants</element>
+    </ecran>
+
+    <ecran id="publier" titre="Publier une annonce" acces="connecté" stories="US4 US6">
+      <element>Titre (80 caractères max, compteur visible)</element>
+      <element>Description (1 000 caractères max, compteur visible)</element>
+      <element>Prix OU case/bascule « C'est un don » qui désactive le champ prix</element>
+      <element>Catégorie (liste déroulante)</element>
+      <element>Moyen de contact : boutons radio Email / Téléphone et champ correspondant</element>
+      <element>Mention « Texte uniquement : pas de photo, pour une application légère »</element>
+      <element>Validation au clic sur « Publier » : si un champ est vide, récapitulatif des erreurs en haut (liens vers chaque champ), message sous chaque champ en erreur, focus déplacé sur le récapitulatif</element>
+      <element>Succès : message de confirmation, la nouvelle annonce apparaît en tête de l'accueil (publication immédiate)</element>
+    </ecran>
+
+    <ecran id="mes-annonces" titre="Mes annonces" acces="connecté" stories="US5">
+      <element>Liste des annonces du compte avec statut « En ligne » / « Clôturée »</element>
+      <element>Bouton « Clôturer » ouvrant une boîte de dialogue de confirmation accessible (« L'échange a été effectué ? »)</element>
+      <element>Après confirmation : statut « Clôturée », disparition de la liste publique, message « Annonce clôturée — cache de la liste mis à jour »</element>
+    </ecran>
+
+    <ecran id="performance" titre="Performance — Definition of Done verte" acces="public">
+      <element>Accessible depuis un lien discret en pied de page sur tous les écrans</element>
+      <element>Pour la page courante : poids, nombre de requêtes, temps estimé en 3G et en 4G, EcoIndex visé</element>
+      <element>Les 5 critères de la Definition of Done verte, chacun avec un statut « Respecté »</element>
+      <element>Mention claire : « Valeurs de démonstration »</element>
+    </ecran>
+  </ecrans>
+
+  <!-- ============================================================ -->
+  <!-- 9. ACCESSIBILITÉ RGAA 4.1 NIVEAU AA                           -->
+  <!-- ============================================================ -->
+  <accessibilite referentiel="RGAA 4.1" niveau="AA" livrable="Code conforme uniquement">
+    <theme nom="Couleurs et contrastes">
+      <exigence>Contraste ≥ 4,5:1 pour le texte</exigence>
+      <exigence>Contraste ≥ 3:1 pour les composants d'interface et l'indicateur de focus</exigence>
+      <exigence>L'information ne passe jamais par la couleur seule (badge « Don » textuel, erreurs avec icône et texte)</exigence>
+    </theme>
+    <theme nom="Navigation clavier">
+      <exigence>Toutes les fonctionnalités sont utilisables au clavier</exigence>
+      <exigence>Ordre de tabulation logique</exigence>
+      <exigence>Focus toujours visible et bien marqué</exigence>
+      <exigence>Pas de piège au clavier</exigence>
+      <exigence>La boîte de dialogue capture le focus, se ferme avec Échap et rend le focus au bouton d'origine</exigence>
+    </theme>
+    <theme nom="Structure">
+      <exigence>lang="fr" sur le document</exigence>
+      <exigence>Titre de page (title) unique et pertinent par écran</exigence>
+      <exigence>Hiérarchie de titres h1 > h2 > h3 cohérente</exigence>
+      <exigence>Landmarks : header, nav, main, footer</exigence>
+      <exigence>Lien d'évitement vers le contenu principal</exigence>
+    </theme>
+    <theme nom="Formulaires">
+      <exigence>Labels visibles et associés à chaque champ</exigence>
+      <exigence>Champs obligatoires indiqués en texte, pas seulement par un astérisque</exigence>
+      <exigence>Attribut autocomplete sur l'identifiant et le contact</exigence>
+      <exigence>Messages d'erreur reliés aux champs (aria-describedby, aria-invalid)</exigence>
+      <exigence>Format attendu indiqué (email, téléphone, prix)</exigence>
+    </theme>
+    <theme nom="Messages dynamiques">
+      <exigence>Filtre appliqué, contact révélé, publication réussie, clôture et cache annoncés via aria-live / role="status"</exigence>
+    </theme>
+    <theme nom="Liens et composants">
+      <exigence>Intitulés explicites hors contexte, pas de « cliquez ici »</exigence>
+      <exigence>Éléments natifs (button, a, select) plutôt que des div cliquables</exigence>
+    </theme>
+    <theme nom="Présentation">
+      <exigence>Lisible avec un zoom texte à 200 %</exigence>
+      <exigence>Largeur de 320 px sans défilement horizontal</exigence>
+      <exigence>Cibles tactiles d'au moins 44 × 44 px</exigence>
+    </theme>
+    <theme nom="Consultation">
+      <exigence>Aucun contenu qui clignote</exigence>
+      <exigence>Aucune limite de temps</exigence>
+    </theme>
+  </accessibilite>
+
+  <!-- ============================================================ -->
+  <!-- 10. HORS PÉRIMÈTRE V1                                         -->
+  <!-- ============================================================ -->
+  <hors-perimetre>
+    <exclu version="V2">Photos et images d'annonces</exclu>
+    <exclu version="V2">Recherche par mot-clé</exclu>
+    <exclu version="V2">Modification d'annonce</exclu>
+    <exclu version="V2">Bouton « Réserver »</exclu>
+    <exclu version="V3">Suppression et modération par l'administratrice</exclu>
+    <exclu version="V3">Favoris / likes</exclu>
+    <exclu version="V3">Messagerie instantanée</exclu>
+    <exclu version="V3">Notifications</exclu>
+    <exclu version="V3">Système d'évaluation</exclu>
+    <exclu version="V4">Casiers « Locker »</exclu>
+    <exclu version="Won't">Scroll infini</exclu>
+    <exclu version="Décision équipe">Mode sombre</exclu>
+  </hors-perimetre>
+
+  <!-- ============================================================ -->
+  <!-- 11. PARCOURS DE DÉMO                                          -->
+  <!-- ============================================================ -->
+  <parcours-demo>
+    <etape n="1" persona="catherine">Se connecte et publie une annonce, en provoquant d'abord une erreur de formulaire</etape>
+    <etape n="2">La nouvelle annonce apparaît en tête de l'accueil</etape>
+    <etape n="3" persona="kevin">Sans compte, filtre sur « Mathématiques », trie par prix, ouvre une annonce et révèle le contact</etape>
+    <etape n="4" persona="catherine">Clôture une annonce depuis « Mes annonces » ; elle disparaît de la liste publique</etape>
+    <etape n="5">Ouverture du panneau Performance</etape>
+  </parcours-demo>
+
+</brief>
