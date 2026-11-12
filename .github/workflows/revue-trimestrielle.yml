@@ -15,7 +15,7 @@ jobs:
   ticket:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Créer le ticket de revue
         env:
           GH_TOKEN: ${{ github.token }}
