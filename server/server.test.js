@@ -599,3 +599,12 @@ test('témoin de session : rp_auth posé à la connexion, retiré à la déconne
   assert.equal(stale.json().user, null);
   assert.ok([].concat(stale.headers['set-cookie']).some((c) => c.startsWith('rp_auth=;')));
 });
+
+test('hébergement : /carbon.txt déclare OVHcloud, en texte brut', async () => {
+  const { a } = await fresh();
+  const res = await a.inject({ url: '/carbon.txt' });
+  assert.equal(res.statusCode, 200);
+  assert.match(res.headers['content-type'], /text\/plain/);
+  assert.match(res.body, /\[upstream\]/);
+  assert.match(res.body, /domain = 'ovhcloud\.com'/);
+});

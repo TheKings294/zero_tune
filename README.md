@@ -5,9 +5,9 @@ PWA mobile-first de dons et de ventes de matériel scolaire entre élèves, pour
 ## Gouvernance
 | | |
 |---|---|
-| **Référent numérique responsable** | **À RENSEIGNER** (nom, rôle, contact). Il valide les budgets, les dépendances et l'hébergeur, et déclenche le décommissionnement. |
-| **Licence** | **À CHOISIR** par le BDE (ajouter un fichier `LICENSE` et la mention ici avant toute mise en ligne publique). |
-| **Hébergeur** | **À RENSEIGNER** : voir « Hébergement » ci-dessous. |
+| **Référent numérique responsable** | Nathan Chabalier nathan.chabalier@possessio.fr |
+| **Licence** | MIT |
+| **Hébergeur** | OVHCloud |
 
 ## Lancer
 ```bash
@@ -21,7 +21,7 @@ Comptes de démonstration (si `SEED_DEMO=1`, base vide) : `catherine` / `kevin`,
 |---|---|---|
 | `HOST_PORT` | 8080 | port publié par Docker |
 | `COOKIE_SECURE` | 0 | passer à `1` dès que le site est en HTTPS (obligatoire pour la PWA hors `localhost`) |
-| `GREEN_HOSTING` | 0 | `1` si l'hébergeur est « vert » (influe sur le calcul CO2.js) |
+| `GREEN_HOSTING` | 1 | `1` si l'hébergeur est « vert » (influe sur le calcul CO2.js) |
 | `RETENTION_CLOSED_DAYS` | 90 | suppression des annonces clôturées |
 | `RETENTION_INACTIVE_DAYS` | 365 | suppression des comptes sans connexion (et de leurs annonces) |
 | `RETENTION_IMPACT_DAYS` | 730 | suppression des cumuls carbone journaliers |
@@ -56,8 +56,10 @@ Les durées se règlent par variables d'environnement. Sauvegarde : copier `data
 - **Retour arrière** : `git revert` puis même procédure ; la base est compatible (migrations additives dans `server/db.js`).
 
 ## Hébergement
-Choisir l'hébergeur selon : localisation (Union européenne), électricité renouvelable et PUE publiés, certifications ou rapport environnemental, sobriété de l'offre (petite VM suffisante : un conteneur, SQLite). Vérifier avec `npm run hosting:check -- <domaine>` (Green Web Foundation) et reporter le résultat dans `GREEN_HOSTING`.
-Fiche à compléter : hébergeur **À RENSEIGNER** · pays · source d'énergie · justificatif (lien) · date de vérification.
+**Hébergeur : OVHcloud** (France). Fiche détaillée et justificatifs : `docs/HEBERGEMENT.md`.
+- **Déclaration** : `site/carbon.txt`, servi à `/carbon.txt` (standard carbon.txt de la Green Web Foundation, hébergeur en amont `ovhcloud.com`).
+- **Calcul CO2.js** : `GREEN_HOSTING=1` (défaut du `compose.yml`) car `ovhcloud.com` est référencé « vert » par la Green Web Foundation (vérifié le 12/11/2026 : `npm run hosting:check -- ovhcloud.com`). À revérifier à chaque changement d'offre ou de datacenter, et avec le domaine réel du site une fois connu.
+- **Critères de choix** : localisation dans l'Union européenne, électricité renouvelable et PUE publiés, sobriété de l'offre (petite VM suffisante : un conteneur, SQLite).
 
 ## Décommissionnement
 1. Décision du référent et annonce aux utilisateurs (date de fermeture, 30 jours de préavis conseillés).
