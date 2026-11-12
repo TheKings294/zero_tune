@@ -1,4 +1,4 @@
-var CACHE = 'repasse-v4';
+var CACHE = 'repasse-v5';
 var SHELL = ['/', '/style.css', '/app.js', '/manifest.webmanifest', '/icon.svg'];
 
 self.addEventListener('install', function (e) {
@@ -15,7 +15,8 @@ self.addEventListener('fetch', function (e) {
   var req = e.request;
   var url = new URL(req.url);
   if (req.method !== 'GET' || url.origin !== location.origin) return;
-  if (/\/contact$/.test(url.pathname) || url.pathname === '/api/me') return; // contact et session : jamais en cache
+  // Seules la liste et le détail publics passent par le cache ; compte, contact et « Mes annonces » : réseau uniquement.
+  if (url.pathname.indexOf('/api/') === 0 && !/^\/api\/annonces(\/\d+)?$/.test(url.pathname)) return;
   if (url.pathname.indexOf('/api/') === 0) {
     // API : réseau d'abord (liste toujours à jour), cache en secours hors connexion.
     e.respondWith(fetch(req).then(function (res) {

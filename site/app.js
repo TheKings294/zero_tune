@@ -342,6 +342,7 @@
     }
     if (me) {
       link('#publier', 'Publier une annonce');
+      link('#mes-annonces', 'Mes annonces');
       var out = el('button', { type: 'button', 'class': 'navlink', text: 'Se déconnecter' });
       out.addEventListener('click', logout);
       nav.appendChild(el('li', {}, [out]));
@@ -566,7 +567,7 @@
       api('POST', '/api/annonces', body).then(function (r) {
         btn.disabled = false; btn.textContent = 'Publier';
         if (r.ok) {
-          try { Object.keys(localStorage).forEach(function (k) { if (k.indexOf('rp:list:') === 0) localStorage.removeItem(k); }); } catch (e) { /* ignoré */ }
+          purgeListCache();
           flash = 'Votre annonce est en ligne : elle apparaît en tête de la liste.';
           return go('#liste');
         }
@@ -581,6 +582,111 @@
     setView('Publier une annonce', [el('h1', { text: 'Publier une annonce' }), box, form]);
   }
 
+  // ---- boîte de dialogue accessible (sans <dialog> : absent des anciens iOS) ----
+  function confirmDialog(o) {
+    var yes = el('button', { 'class': 'btn btn-primary', type: 'button', text: o.yes });
+    var no = el('button', { 'class': 'btn', type: 'button', text: o.no });
+    var dlg = el('div', { 'class': 'dialog', role: 'dialog', 'aria-modal': 'true', 'aria-labelledby': 'dlg-title', 'aria-describedby': 'dlg-desc', tabindex: '-1' }, [
+      el('h2', { id: 'dlg-title', text: o.title }), el('p', { id: 'dlg-desc', text: o.text }),
+      el('div', { 'class': 'dialog-actions' }, [yes, no])]);
+    var overlay = el('div', { 'class': 'overlay' }, [dlg]);
+    var behind = [].slice.call(document.querySelectorAll('body > .skip, body > header, body > main, body > footer'));
+    behind.forEach(function (n) { n.setAttribute('aria-hidden', 'true'); });
+    document.body.appendChild(overlay);
+    function close(restore) {
+      document.removeEventListener('keydown', onKey, true);
+      document.body.removeChild(overlay);
+      behind.forEach(function (n) { n.removeAttribute('aria-hidden'); });
+      if (restore && o.origin) o.origin.focus();
+    }
+    function onKey(ev) {
+      if (ev.key === 'Escape' || ev.key === 'Esc') { ev.preventDefault(); close(true); return; }
+      if (ev.key !== 'Tab') return;
+      var first = yes, last = no, a = document.activeElement;
+      if (ev.shiftKey && (a === first || a === dlg)) { ev.preventDefault(); last.focus(); }
+      else if (!ev.shiftKey && a === last) { ev.preventDefault(); first.focus(); }
+      else if (a !== first && a !== last) { ev.preventDefault(); first.focus(); }
+    }
+    document.addEventListener('keydown', onKey, true);
+    overlay.addEventListener('click', function (ev) { if (ev.target === overlay) close(true); });
+    no.addEventListener('click', function () { close(true); });
+    yes.addEventListener('click', function () { close(false); o.onYes(); });
+    dlg.focus();
+  }
+
+  // ---- mes annonces et clôture (US5) ----
+  function purgeListCache() {
+    try { Object.keys(localStorage).forEach(function (k) { if (k.indexOf('rp:list:') === 0) localStorage.removeItem(k); }); } catch (e) { /* ignoré */ }
+  }
+
+  function renderMine() {
+    var me2 = ++token;
+    var status = el('p', { 'class': 'banner', role: 'status', tabindex: '-1', hidden: 'hidden' });
+    var problem = el('p', { 'class': 'summary', role: 'alert', tabindex: '-1', hidden: 'hidden' });
+    var box = el('div', {});
+    setView('Mes annonces', [el('h1', { text: 'Mes annonces' }), status, problem, box]);
+
+    function say(node, text) { node.textContent = text; node.hidden = false; node.focus(); }
+
+    function row(a) {
+      var onLine = a.statut === 'active';
+      var meta = [priceNode(a.prix_cents),
+        el('span', {}, [el('span', { 'class': 'sr-only', text: 'Catégorie : ' }), document.createTextNode(a.categorie)]),
+        el('span', { text: relDate(a.created_at) }),
+        el('span', { 'class': 'badge ' + (onLine ? 'badge-on' : 'badge-off'), text: onLine ? 'En ligne' : 'Clôturée' })];
+      var kids = [el('h3', { text: a.titre }), el('span', { 'class': 'meta' }, meta)];
+      if (onLine) {
+        var b = el('button', { 'class': 'btn', type: 'button', text: 'Clôturer', 'aria-label': 'Clôturer l’annonce « ' + a.titre + ' »' });
+        b.addEventListener('click', function () {
+          confirmDialog({
+            title: "L'échange a été effectué ?",
+            text: 'L’annonce « ' + a.titre + ' » passera en statut « Clôturée » et disparaîtra de la liste publique.',
+            yes: "Oui, clôturer l'annonce", no: 'Non, la garder en ligne', origin: b,
+            onYes: function () {
+              problem.hidden = true;
+              api('POST', '/api/annonces/' + a.id + '/cloture', {}).then(function (r) {
+                if (r.ok) {
+                  purgeListCache();
+                  a.statut = 'closed';
+                  fill(box, [list(rowsData)]);
+                  return say(status, 'Annonce clôturée — cache de la liste mis à jour.');
+                }
+                if (r.status === 401) { me = null; renderNav(); afterLogin = '#mes-annonces'; return go('#connexion'); }
+                say(problem, r.status === 404 || r.status === 409
+                  ? "Cette annonce n'existe plus ou est déjà clôturée. La liste est à jour après rechargement."
+                  : 'Clôture impossible, réessayez.');
+                b.focus();
+              }, function () {
+                say(problem, 'Vous êtes hors connexion : l’annonce n’a pas été clôturée.');
+                b.focus();
+              });
+            }
+          });
+        });
+        kids.push(b);
+      }
+      return el('li', {}, [el('div', { 'class': 'card mine' }, kids)]);
+    }
+    var rowsData = [];
+    function list(items) { return el('ul', { 'class': 'cards' }, items.map(row)); }
+
+    api('GET', '/api/mes-annonces').then(function (r) {
+      if (me2 !== token) return;
+      if (r.status === 401) { me = null; renderNav(); afterLogin = '#mes-annonces'; return go('#connexion'); }
+      if (!r.ok) throw new Error('http');
+      rowsData = r.json.items;
+      if (!rowsData.length) {
+        return fill(box, [el('div', { 'class': 'state' }, [el('p', { text: "Vous n'avez publié aucune annonce pour le moment." }),
+          el('a', { 'class': 'btn', href: '#publier', text: 'Publier une annonce' })])]);
+      }
+      fill(box, [list(rowsData)]);
+    }).catch(function (err) {
+      if (me2 !== token) return;
+      fill(box, [stateBox([err.message === 'http' ? 'Service indisponible, réessayez plus tard.'
+        : 'Vous êtes hors connexion : vos annonces ne peuvent pas être affichées.'])]);
+    });
+  }
+
   // ---- routage par ancre ----
   var previous = null;
   function route() {
@@ -591,6 +697,13 @@
     if (parts[0] === '#connexion' || parts[0] === '#inscription') {
       previous = null;
       return meP.then(parts[0] === '#connexion' ? renderLogin : renderRegister);
+    }
+    if (parts[0] === '#mes-annonces') {
+      previous = null;
+      return meP.then(function () {
+        if (!me) { afterLogin = '#mes-annonces'; return go('#connexion'); }
+        renderMine();
+      });
     }
     if (parts[0] === '#publier') {
       previous = null;

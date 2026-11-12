@@ -169,6 +169,30 @@ export async function buildApp(db) {
     return reply.code(201).send({ id });
   });
 
+  // ---- mes annonces et clôture (US5) ----
+  const mineQ = db.prepare(`SELECT id, titre, prix_cents, categorie, statut, created_at FROM annonces
+    WHERE user_id = ? ORDER BY created_at DESC, id DESC LIMIT 100`);
+  app.get('/api/mes-annonces', { preHandler: requireUser }, async (req, reply) => {
+    reply.header('Cache-Control', 'no-store');
+    return reply.type('application/json; charset=utf-8').send({ items: mineQ.all(req.user.id) });
+  });
+
+  const ownQ = db.prepare('SELECT id, statut FROM annonces WHERE id = ? AND user_id = ?');
+  app.post('/api/annonces/:id/cloture', { preHandler: requireUser }, async (req, reply) => {
+    reply.header('Cache-Control', 'no-store');
+    if (!String(req.headers['content-type'] || '').startsWith('application/json')) {
+      return reply.code(415).send({ erreur: 'JSON attendu' });
+    }
+    const id = Number(req.params.id);
+    // Annonce d'un autre compte = même réponse qu'une annonce inexistante.
+    const row = Number.isInteger(id) ? ownQ.get(id, req.user.id) : undefined;
+    if (!row) return reply.code(404).send({ erreur: 'introuvable' });
+    if (row.statut === 'closed') return reply.code(409).send({ erreur: 'déjà clôturée' });
+    db.prepare("UPDATE annonces SET statut = 'closed' WHERE id = ?").run(id);
+    app.invalidate();
+    return { id, statut: 'closed' };
+  });
+
   await app.register(fastifyStatic, {
     root: SITE,
     cacheControl: false,

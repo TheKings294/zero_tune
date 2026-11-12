@@ -297,3 +297,53 @@ test('US4 login : 10 échecs → 429 (freinage), même avec le bon mot de passe 
   for (let i = 0; i < 10; i++) assert.equal((await p({ username: 'kevin', password: 'x' })).statusCode, 401);
   assert.equal((await p({ username: 'kevin', password: 'demo' })).statusCode, 429);
 });
+
+// ---------- US5 : mes annonces et clôture ----------
+test('US5 mes annonces : connexion requise, uniquement celles du compte, avec statut', async () => {
+  assert.equal((await get('/api/mes-annonces')).statusCode, 401);
+  const { cookie } = await login('kevin');
+  const mine = await app.inject({ url: '/api/mes-annonces', headers: { cookie } });
+  assert.equal(mine.headers['cache-control'], 'no-store');
+  const items = mine.json().items;
+  assert.ok(items.length >= 1 && items.every((i) => ['active', 'closed'].includes(i.statut)));
+  assert.ok(!items.some((i) => i.titre === 'Annales de bac Mathématiques 2025')); // annonce de Catherine
+  assert.ok(!JSON.stringify(mine.json()).includes('contact'));
+});
+
+test('US5 clôture : statut « closed », disparaît de la liste, du détail et du contact, cache vidé', async () => {
+  const { cookie } = await login('catherine');
+  const mine = (await app.inject({ url: '/api/mes-annonces', headers: { cookie } })).json().items;
+  const target = mine.find((i) => i.statut === 'active');
+  const before = (await get('/api/annonces')).json().total; // met la liste en cache serveur
+  await get(`/api/annonces/${target.id}`);
+  const res = await post(`/api/annonces/${target.id}/cloture`, {}, cookie);
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.json().statut, 'closed');
+  const list = (await get('/api/annonces')).json();
+  assert.equal(list.total, before - 1);
+  assert.ok(!JSON.stringify(list).includes(`"id":${target.id},`));
+  assert.equal((await get(`/api/annonces/${target.id}`)).statusCode, 404);
+  assert.equal((await get(`/api/annonces/${target.id}/contact`)).statusCode, 404);
+  const again = (await app.inject({ url: '/api/mes-annonces', headers: { cookie } })).json().items;
+  assert.equal(again.find((i) => i.id === target.id).statut, 'closed'); // visible dans « Mes annonces »
+});
+
+test('US5 clôture : annonce d’un autre compte, inconnue ou invalide → 404, rien ne change', async () => {
+  const { cookie } = await login('kevin');
+  const other = db.prepare("SELECT a.id FROM annonces a JOIN users u ON u.id = a.user_id WHERE u.username = 'mehdi' AND a.statut = 'active'").get();
+  assert.equal((await post(`/api/annonces/${other.id}/cloture`, {}, cookie)).statusCode, 404);
+  assert.equal(db.prepare('SELECT statut FROM annonces WHERE id = ?').get(other.id).statut, 'active');
+  assert.equal((await post('/api/annonces/99999/cloture', {}, cookie)).statusCode, 404);
+  assert.equal((await post('/api/annonces/abc/cloture', {}, cookie)).statusCode, 404);
+});
+
+test('US5 clôture : sans connexion 401, déjà clôturée 409, corps non JSON 415', async () => {
+  assert.equal((await post('/api/annonces/1/cloture', {})).statusCode, 401);
+  const { cookie } = await login('catherine');
+  const closed = db.prepare("SELECT a.id FROM annonces a JOIN users u ON u.id = a.user_id WHERE u.username = 'catherine' AND a.statut = 'closed'").get();
+  assert.equal((await post(`/api/annonces/${closed.id}/cloture`, {}, cookie)).statusCode, 409);
+  const open = db.prepare("SELECT a.id FROM annonces a JOIN users u ON u.id = a.user_id WHERE u.username = 'catherine' AND a.statut = 'active'").get();
+  const noType = await app.inject({ method: 'POST', url: `/api/annonces/${open.id}/cloture`, headers: { cookie } });
+  assert.equal(noType.statusCode, 415);
+  assert.equal(db.prepare('SELECT statut FROM annonces WHERE id = ?').get(open.id).statut, 'active');
+});
