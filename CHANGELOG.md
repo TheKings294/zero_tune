@@ -7,6 +7,7 @@ Chaque version sépare les **évolutions** des **corrections** (RGESN 3.5). Proc
 ## [Non publié]
 
 ### Évolutions
+- Écran « Impact environnemental » : tableau comparant le budget de performance (poids, requêtes, temps d'affichage en 3G, EcoIndex) aux mesures réelles de l'équipe, avec le score RGESN (89 %).
 - Conteneur à ressources bornées : 256 Mo de mémoire sans swap, 0,5 CPU, 128 processus (`compose.yml`).
 - Fichiers statiques précompressés au démarrage (Brotli 11, gzip 9), manifeste avec empreinte, front minifié dans l'image Docker (esbuild, absent de l'image finale) : première visite de ≈ 18,5 Ko à ≈ 16,5 Ko, `app.js` de 11,7 Ko (gzip) à 8,6 Ko (Brotli).
 - `npm run budget` : mesure le poids et le nombre de requêtes d'une première visite et échoue au-delà de 500 Ko ou de 14 requêtes ; intégré à la CI GitHub (tests + budget).
@@ -16,7 +17,7 @@ Chaque version sépare les **évolutions** des **corrections** (RGESN 3.5). Proc
 - Dependabot suit aussi les actions GitHub.
 
 ### Corrections
-- Écran « Impact » : n'affiche plus « tout vient du cache » quand le navigateur ne renseigne pas `transferSize`.
+- Écran « Impact » : les tableaux qui défilent sont atteignables au clavier (région nommée) ; n'affiche plus « tout vient du cache » quand le navigateur ne renseigne pas `transferSize`.
 - Purge : une durée de conservation à `0` est acceptée au lieu de revenir à la valeur par défaut ; un compte ayant une session valide n'est jamais purgé.
 
 ## [0.1.0] - 2026-11-12

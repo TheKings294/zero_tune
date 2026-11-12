@@ -10,7 +10,8 @@
 5. **Données** : purge exécutée (`purge` dans le journal du conteneur), durées `RETENTION_*` toujours adaptées, taille de `data/repasse.db`.
 6. **Accessibilité** : audit des écrans principaux (contrastes, clavier, lecteur d'écran).
 7. **Hébergement** : relire `docs/HEBERGEMENT.md` (valeurs OVHcloud, statut « vert »), au moins une fois par an.
-8. **Décider** : chaque écart devient un ticket avec un responsable et une échéance ; consigner la revue ci-dessous et mettre à jour le `CHANGELOG.md` si des changements en découlent.
+8. **Mettre à jour l'écran « Impact environnemental »** : reporter les mesures du trimestre (requêtes, temps d'affichage en 3G, EcoIndex, score RGESN) dans les constantes `PERF_BUDGET` de `site/app.js` et dans le tableau des budgets du README.
+9. **Décider** : chaque écart devient un ticket avec un responsable et une échéance ; consigner la revue ci-dessous et mettre à jour le `CHANGELOG.md` si des changements en découlent.
 
 ## Seuils d'alerte (ouvrir un ticket prioritaire)
 - première visite > 400 Ko ou > 12 requêtes ;

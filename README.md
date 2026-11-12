@@ -33,14 +33,15 @@ Comptes de démonstration (si `SEED_DEMO=1`, base vide) : `catherine` / `kevin`,
 ## Budgets (règle la plus stricte du brief)
 | Indicateur | Budget | Mesure actuelle |
 |---|---|---|
-| Poids par page | ≤ 500 Ko | ≈ 16,5 Ko à la 1re visite (Brotli, mesuré par `npm run budget`) ; ≈ 1 Ko ensuite (Service Worker) |
-| Requêtes par page | < 15 | 7 à la 1re visite (page, manifeste, icône, CSS, JS, Service Worker, liste), 1 ensuite ; plus d'appel `/api/me` pour un visiteur sans compte |
-| Affichage | < 3 s en 3G, < 1 s en 4G | à mesurer sur Samsung S7 |
-| EcoIndex | A ou B | à mesurer sur ecoindex.fr |
+| Poids par page | ≤ 500 Ko | ≈ 17 Ko à la 1re visite (Brotli, mesuré par `npm run budget`) ; ≈ 1 Ko ensuite (Service Worker) |
+| Requêtes par page | < 15 | 6 relevées par l'équipe dans le navigateur (7 selon `npm run budget`, qui compte aussi le Service Worker), 1 ensuite ; plus d'appel `/api/me` pour un visiteur sans compte |
+| Affichage | < 3 s en 3G, < 1 s en 4G | 1,5 à 2 s en 3G (< 3 s respecté) ; 4G et Samsung S7 à mesurer |
+| EcoIndex | A ou B | **A (92,98/100)** sur ecoindex.fr |
 | CO2 par 1re visite | ≤ 0,005 g CO2e *(proposition à valider par le référent)* | ≈ 0,0020 g (CO2.js, modèle SWD v4) |
 | Accessibilité | RGAA 4.1 AA | code conforme, à auditer |
+| Score RGESN | — | **89 %** (auto-évaluation) |
 
-Le coût carbone réel est visible dans l'interface (pied de page → « Impact environnemental ») et via `GET /api/impact`. Compatibilité visée : iPhone 8 et Samsung S7 (JS sans syntaxe récente, aucune dépendance côté navigateur).
+Le coût carbone réel et ce tableau budget / réel sont visibles dans l'interface (pied de page → « Impact environnemental », constantes `PERF_BUDGET` de `site/app.js`) et le coût carbone via `GET /api/impact`. Compatibilité visée : iPhone 8 et Samsung S7 (JS sans syntaxe récente, aucune dépendance côté navigateur).
 
 ## Données et conservation
 Données stockées (SQLite, `data/repasse.db`) : comptes (identifiant, mot de passe haché scrypt, prénom, contact), annonces (texte), sessions, cumuls carbone par jour. Aucun traceur, aucun statistique par visiteur, aucune IP conservée.

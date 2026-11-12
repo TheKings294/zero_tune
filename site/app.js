@@ -728,6 +728,37 @@
     return { requests: all.length, bytes: bytes, available: numeric && informative };
   }
 
+  // Budget de performance (brief, règle la plus stricte) comparé aux mesures réelles de l'équipe.
+  // À mettre à jour à chaque revue d'écoconception (docs/REVUE-ECOCONCEPTION.md).
+  var PERF_BUDGET = [
+    { critere: 'Poids par page', objectif: 'Moins de 500 Ko', reel: '≈ 17 Ko', statut: 'Respecté' },
+    { critere: 'Requêtes par page', objectif: 'Moins de 15', reel: '6', statut: 'Respecté' },
+    { critere: 'Temps d’affichage', objectif: 'Moins de 3 s en 3G', reel: 'Entre 1,5 et 2 s', statut: 'Respecté' },
+    { critere: 'EcoIndex', objectif: 'A ou B', reel: 'A (92,98/100)', statut: 'Respecté' },
+    { critere: 'Score RGESN', objectif: '—', reel: '89 %', statut: 'Mesuré' }
+  ];
+
+  function budgetSection() {
+    var rows = PERF_BUDGET.map(function (r) {
+      var ok = r.statut === 'Respecté';
+      return el('tr', {}, [
+        el('th', { scope: 'row', text: r.critere }),
+        el('td', { text: r.objectif }),
+        el('td', { text: r.reel }),
+        el('td', { 'class': ok ? 'status ok' : 'status' }, [ok ? el('span', { 'aria-hidden': 'true', text: '✓ ' }) : null, document.createTextNode(r.statut)])
+      ]);
+    });
+    return el('section', { 'aria-labelledby': 'h2-budget' }, [
+      el('h2', { id: 'h2-budget', text: 'Budget de performance : objectif et réel' }),
+      el('div', { 'class': 'table-wrap', role: 'region', 'aria-label': 'Comparaison du budget de performance et des mesures réelles', tabindex: '0' }, [
+        el('table', { 'class': 'compare' }, [
+          el('caption', { 'class': 'sr-only', text: 'Objectifs du budget de performance et valeurs réelles mesurées' }),
+          el('thead', {}, [el('tr', {}, ['Critère', 'Objectif', 'Réel', 'Statut'].map(function (t) { return el('th', { scope: 'col', text: t }); }))]),
+          el('tbody', {}, rows)])]),
+      el('p', { 'class': 'note', text: 'Valeurs relevées par l’équipe : poids de la première visite avec npm run budget, requêtes et temps d’affichage en 3G avec les outils du navigateur, EcoIndex sur ecoindex.fr, score RGESN par auto-évaluation du référentiel.' })
+    ]);
+  }
+
   function renderImpact() {
     var me3 = ++token;
     var box = el('div', {});
@@ -740,13 +771,14 @@
       el('p', { text: !v.available ? 'Votre navigateur ne fournit pas cette mesure.'
         : v.bytes ? v.requests + ' requêtes, ' + fmtKo(v.bytes) + ' transférés depuis l’ouverture de la page (mesure de votre navigateur).'
         : 'Rien n’a été transféré : tout vient du cache de votre appareil.' })]) : null;
-    fill(box, [mine, el('p', { 'class': 'note', text: 'Chargement des mesures du serveur…' })]);
+    var budget = budgetSection();
+    fill(box, [mine, budget, el('p', { 'class': 'note', text: 'Chargement des mesures du serveur…' })]);
 
     api('GET', '/api/impact?jours=7').then(function (r) {
       if (me3 !== token) return;
       if (!r.ok) throw new Error('http');
       var d = r.json;
-      var kids = [mine];
+      var kids = [mine, budget];
       if (!d.visites) {
         kids.push(el('p', { 'class': 'note', text: 'Pas encore de visite mesurée.' }));
       } else {
@@ -764,7 +796,7 @@
         });
         kids.push(el('section', { 'aria-labelledby': 'h2-days' }, [
           el('h2', { id: 'h2-days', text: 'Derniers jours' }),
-          el('div', { 'class': 'table-wrap' }, [el('table', {}, [
+          el('div', { 'class': 'table-wrap', role: 'region', 'aria-label': 'Visites, transfert et émissions par jour', tabindex: '0' }, [el('table', {}, [
             el('caption', { 'class': 'sr-only', text: 'Visites, transfert et émissions par jour' }),
             el('thead', {}, [el('tr', {}, ['Jour', 'Visites', 'Transfert', 'Total', 'Par visite'].map(function (t) { return el('th', { scope: 'col', text: t }); }))]),
             el('tbody', {}, rows)])])]));
@@ -773,7 +805,7 @@
       fill(box, kids);
     }).catch(function (err) {
       if (me3 !== token) return;
-      fill(box, [mine, stateBox([err.message === 'http' ? 'Mesures indisponibles pour le moment.' : 'Vous êtes hors connexion : les mesures du serveur ne peuvent pas être affichées.'])]);
+      fill(box, [mine, budget, stateBox([err.message === 'http' ? 'Mesures indisponibles pour le moment.' : 'Vous êtes hors connexion : les mesures du serveur ne peuvent pas être affichées.'])]);
     });
   }
 

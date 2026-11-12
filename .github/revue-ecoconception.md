@@ -9,4 +9,5 @@ Revue d'écoconception trimestrielle (RGESN 1.4). Procédure complète : `docs/R
 - [ ] Accessibilité : audit axe sur les écrans principaux, contrastes, clavier
 - [ ] EcoIndex sur ecoindex.fr (objectif A ou B)
 - [ ] Hébergement : `docs/HEBERGEMENT.md` à jour (valeurs OVHcloud, statut « vert »)
+- [ ] Valeurs de l'écran « Impact environnemental » (`PERF_BUDGET`) mises à jour
 - [ ] Compte rendu ajouté au journal de `docs/REVUE-ECOCONCEPTION.md`, actions ouvertes en tickets
