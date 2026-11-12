@@ -5,7 +5,8 @@ CREATE TABLE IF NOT EXISTS users (
   first_name    TEXT NOT NULL,
   contact_type  TEXT NOT NULL CHECK (contact_type IN ('email', 'tel')),
   contact_value TEXT NOT NULL,
-  created_at    TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+  created_at    TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+  last_seen_at  TEXT                    -- dernière connexion/activité (purge des comptes inactifs)
 );
 
 CREATE TABLE IF NOT EXISTS annonces (
@@ -18,7 +19,8 @@ CREATE TABLE IF NOT EXISTS annonces (
     'Mathématiques', 'Français', 'Langues', 'Sciences', 'Histoire-Géo',
     'Informatique', 'Calculatrices', 'Fournitures', 'Livres', 'Autre')),
   statut      TEXT NOT NULL DEFAULT 'active' CHECK (statut IN ('active', 'closed')),
-  created_at  TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+  created_at  TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+  closed_at   TEXT                    -- date de clôture (purge des annonces clôturées)
 );
 
 CREATE INDEX IF NOT EXISTS idx_annonces_statut_date ON annonces (statut, created_at DESC);

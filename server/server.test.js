@@ -170,7 +170,8 @@ test('US3 contact : 404 si annonce inconnue, invalide ou clôturée', async () =
 
 // ---------- US4 : comptes et publication ----------
 const post = (url, payload, cookie) => app.inject({ method: 'POST', url, payload, headers: cookie ? { cookie } : {} });
-const cookieOf = (res) => res.headers['set-cookie'].split(';')[0];
+const setCookies = (res) => [].concat(res.headers['set-cookie'] || []);
+const cookieOf = (res) => setCookies(res).map((c) => c.split(';')[0]).filter((c) => !c.endsWith('=')).join('; ');
 const NEW = { titre: 'Règle en métal 30 cm', description: 'Comme neuve.', prix: 2.5, categorie: 'Fournitures' };
 
 async function login(username = 'catherine', password = 'demo') {
@@ -181,8 +182,9 @@ async function login(username = 'catherine', password = 'demo') {
 test('US4 login : bons identifiants → cookie HttpOnly SameSite, /api/me renvoie le compte', async () => {
   const { res, cookie } = await login();
   assert.equal(res.statusCode, 200);
-  assert.match(res.headers['set-cookie'], /HttpOnly/i);
-  assert.match(res.headers['set-cookie'], /SameSite=Lax/i);
+  const session = setCookies(res).find((c) => c.startsWith('rp_session='));
+  assert.match(session, /HttpOnly/i);
+  assert.match(session, /SameSite=Lax/i);
   const me = (await app.inject({ url: '/api/me', headers: { cookie } })).json();
   assert.equal(me.user.prenom, 'Catherine');
   assert.deepEqual(me.user.contact, { type: 'email', valeur: 'catherine.l@exemple.fr' });
@@ -387,6 +389,8 @@ test('CO2 : une visite (GET /) enregistre octets réels et g CO2e calculés par 
   const res = await a.inject({ url: '/', headers: { 'accept-encoding': 'gzip' } });
   assert.equal(res.statusCode, 200);
   await new Promise((r) => setTimeout(r, 50));
+  assert.equal(m.prepare('SELECT COUNT(*) n FROM impact').get().n, 0); // écritures groupées : rien avant le flush
+  a.meter.flush();
   const row = m.prepare('SELECT * FROM impact').get();
   assert.equal(row.visites, 1);
   assert.equal(row.requetes, 1);
@@ -438,9 +442,160 @@ test('CO2 : les octets comptés sont ceux envoyés (gzip < non compressé)', asy
     const a = await buildApp(m);
     await a.inject({ url: '/app.js', headers });
     await new Promise((r) => setTimeout(r, 50));
+    a.meter.flush();
     return m.prepare('SELECT octets FROM impact').get().octets;
   };
   const gz = await bytesFor({ 'accept-encoding': 'gzip' });
   const raw = await bytesFor({});
   assert.ok(gz < raw / 2, `gzip ${gz} vs brut ${raw}`);
+});
+
+// ---------- RGESN : conservation, écritures groupées, cache, statiques, témoin de session ----------
+import { purge } from './purge.js';
+
+const DAY = 86400000;
+const iso = (daysAgo) => new Date(Date.now() - daysAgo * DAY).toISOString();
+async function fresh() {
+  const m = openDb(':memory:'); seed(m);
+  return { m, a: await buildApp(m) };
+}
+
+test('purge : sessions expirées supprimées, sessions valides conservées', async () => {
+  const { m } = await fresh();
+  const u = m.prepare("SELECT id FROM users WHERE username = 'kevin'").get().id;
+  m.prepare('INSERT INTO sessions VALUES (?, ?, ?)').run('vieux', u, Date.now() - 1000);
+  m.prepare('INSERT INTO sessions VALUES (?, ?, ?)').run('neuf', u, Date.now() + 100000);
+  const r = purge(m);
+  assert.equal(r.sessions, 1);
+  assert.deepEqual(m.prepare('SELECT token_hash FROM sessions').all().map((s) => s.token_hash), ['neuf']);
+});
+
+test('purge : annonces clôturées supprimées après 90 jours (closed_at, sinon created_at), actives intactes', async () => {
+  const { m } = await fresh();
+  const ids = m.prepare('SELECT id FROM annonces ORDER BY id LIMIT 4').all().map((r) => r.id);
+  m.prepare("UPDATE annonces SET statut='closed', closed_at=? WHERE id=?").run(iso(100), ids[0]); // ancienne
+  m.prepare("UPDATE annonces SET statut='closed', closed_at=? WHERE id=?").run(iso(10), ids[1]);  // récente
+  m.prepare("UPDATE annonces SET statut='closed', closed_at=NULL, created_at=? WHERE id=?").run(iso(200), ids[2]); // sans date
+  const before = m.prepare('SELECT COUNT(*) n FROM annonces').get().n;
+  const r = purge(m);
+  assert.equal(r.annoncesCloturees, 2);
+  const left = m.prepare('SELECT id FROM annonces').all().map((x) => x.id);
+  assert.ok(!left.includes(ids[0]) && !left.includes(ids[2]) && left.includes(ids[1]) && left.includes(ids[3]));
+  assert.equal(left.length, before - 2);
+});
+
+test('purge : comptes inactifs > 365 jours supprimés avec leurs annonces et sessions ; actifs conservés', async () => {
+  const { m } = await fresh();
+  m.prepare("UPDATE users SET last_seen_at = ? WHERE username = 'catherine'").run(iso(400));
+  m.prepare("UPDATE users SET last_seen_at = ? WHERE username = 'kevin'").run(iso(5));
+  m.prepare("UPDATE users SET created_at = ? WHERE username = 'mehdi'").run(iso(500)); // jamais connecté depuis la création
+  const cat = m.prepare("SELECT id FROM users WHERE username = 'catherine'").get().id;
+  m.prepare('INSERT INTO sessions VALUES (?, ?, ?)').run('s', cat, Date.now() + 100000);
+  const r = purge(m);
+  assert.equal(r.comptes, 2);
+  assert.ok(r.annoncesDeComptes >= 5); // 3 de Catherine + 2 de Mehdi
+  assert.equal(m.prepare("SELECT COUNT(*) n FROM users WHERE username IN ('catherine','mehdi')").get().n, 0);
+  assert.equal(m.prepare('SELECT COUNT(*) n FROM annonces WHERE user_id = ?').get(cat).n, 0);
+  assert.equal(m.prepare('SELECT COUNT(*) n FROM sessions').get().n, 0);
+  assert.equal(m.prepare("SELECT COUNT(*) n FROM users WHERE username = 'kevin'").get().n, 1);
+});
+
+test('purge : app.purge() vide le cache serveur et les échecs de connexion périmés', async () => {
+  const { m, a } = await fresh();
+  const before = (await a.inject({ url: '/api/annonces' })).json().total;
+  m.prepare("UPDATE users SET last_seen_at = ? WHERE username = 'catherine'").run(iso(400));
+  assert.equal((await a.inject({ url: '/api/annonces' })).json().total, before); // encore en cache
+  a.purge();
+  assert.equal((await a.inject({ url: '/api/annonces' })).json().total, before - 3);
+});
+
+test('purge : la connexion et l’activité mettent à jour last_seen_at, la clôture renseigne closed_at', async () => {
+  const { m, a } = await fresh();
+  const r = await a.inject({ method: 'POST', url: '/api/login', payload: { username: 'catherine', password: 'demo' } });
+  assert.ok(m.prepare("SELECT last_seen_at FROM users WHERE username = 'catherine'").get().last_seen_at);
+  const cookie = [].concat(r.headers['set-cookie']).map((c) => c.split(';')[0]).join('; ');
+  const mine = (await a.inject({ url: '/api/mes-annonces', headers: { cookie } })).json().items[0];
+  await a.inject({ method: 'POST', url: `/api/annonces/${mine.id}/cloture`, payload: {}, headers: { cookie } });
+  assert.ok(m.prepare('SELECT closed_at FROM annonces WHERE id = ?').get(mine.id).closed_at);
+});
+
+test('impact : les mesures sont écrites en une seule transaction groupée (pas une écriture par requête)', async () => {
+  const { m, a } = await fresh();
+  for (let i = 0; i < 6; i++) await a.inject({ url: '/api/annonces' });
+  await new Promise((r) => setTimeout(r, 50));
+  assert.equal(m.prepare('SELECT COUNT(*) n FROM impact').get().n, 0);
+  a.meter.flush();
+  const row = m.prepare('SELECT requetes FROM impact').get();
+  assert.equal(row.requetes, 6);
+  await a.close(); // l'arrêt propre vide aussi le tampon
+});
+
+test('impact : l’arrêt du serveur (onClose) écrit le tampon restant', async () => {
+  const m = openDb(':memory:'); seed(m);
+  const a = await buildApp(m);
+  await a.inject({ url: '/' });
+  await new Promise((r) => setTimeout(r, 50));
+  await a.close();
+  assert.equal(m.prepare('SELECT visites FROM impact').get().visites, 1);
+});
+
+test('cache : le total (COUNT) est en cache serveur, rafraîchi seulement à l’invalidation', async () => {
+  const { m, a } = await fresh();
+  const t0 = (await a.inject({ url: '/api/annonces?categorie=Livres' })).json().total;
+  m.prepare("UPDATE annonces SET statut = 'closed' WHERE categorie = 'Livres'").run();
+  assert.equal((await a.inject({ url: '/api/annonces?categorie=Livres' })).json().total, t0); // aucun COUNT refait
+  a.invalidate();
+  assert.equal((await a.inject({ url: '/api/annonces?categorie=Livres' })).json().total, 0);
+});
+
+test('statiques : URL empreintes en cache long immuable, page et Service Worker toujours revalidés', async () => {
+  const { a } = await fresh();
+  const html = (await a.inject({ url: '/' })).body;
+  const css = html.match(/href="(\/style\.css\?v=[0-9a-f]{10})"/)[1];
+  const js = html.match(/src="(\/app\.js\?v=[0-9a-f]{10})"/)[1];
+  const long = (await a.inject({ url: js })).headers['cache-control'];
+  assert.match(long, /public, max-age=31536000, immutable/);
+  assert.match((await a.inject({ url: css })).headers['cache-control'], /immutable/);
+  assert.equal((await a.inject({ url: '/' })).headers['cache-control'], 'no-cache');
+  assert.equal((await a.inject({ url: '/sw.js' })).headers['cache-control'], 'no-cache');
+  assert.equal((await a.inject({ url: '/app.js' })).headers['cache-control'], 'no-cache'); // sans empreinte : pas de cache long
+  assert.equal((await a.inject({ url: '/app.js?v=perime' })).headers['cache-control'], 'no-cache'); // mauvaise empreinte
+  assert.equal((await a.inject({ url: '/manifest.webmanifest' })).headers['cache-control'], 'no-cache');
+});
+
+test('statiques : le Service Worker reçoit une version issue du contenu et la liste de la coquille empreinte', async () => {
+  const { a } = await fresh();
+  const sw = (await a.inject({ url: '/sw.js' })).body;
+  assert.ok(!sw.includes('__VERSION__') && !sw.includes('__SHELL__'));
+  assert.ok(sw.includes(`repasse-${a.site.version}`));
+  assert.ok(sw.includes(`/app.js?v=${a.site.versions['app.js']}`));
+  assert.match((await a.inject({ url: '/sw.js' })).headers['content-type'], /javascript/);
+});
+
+test('statiques : l’empreinte suit le contenu', async () => {
+  const { mkdtempSync, writeFileSync, cpSync } = await import('node:fs');
+  const { tmpdir } = await import('node:os');
+  const { loadSite } = await import('./assets.js');
+  const dir = mkdtempSync(`${tmpdir()}/site-`);
+  cpSync(new URL('../site/', import.meta.url), dir, { recursive: true });
+  const v1 = loadSite(dir);
+  writeFileSync(`${dir}/app.js`, '// modifié');
+  const v2 = loadSite(dir);
+  assert.notEqual(v1.versions['app.js'], v2.versions['app.js']);
+  assert.notEqual(v1.version, v2.version);
+  assert.equal(v1.versions['style.css'], v2.versions['style.css']);
+});
+
+test('témoin de session : rp_auth posé à la connexion, retiré à la déconnexion et si la session a expiré', async () => {
+  const { a } = await fresh();
+  const login = await a.inject({ method: 'POST', url: '/api/login', payload: { username: 'kevin', password: 'demo' } });
+  const cookies = [].concat(login.headers['set-cookie']);
+  const hint = cookies.find((c) => c.startsWith('rp_auth='));
+  assert.ok(hint && !/HttpOnly/i.test(hint)); // lisible par le JS
+  assert.ok(!cookies.find((c) => c.startsWith('rp_session=')).match(/^rp_auth/));
+  const out = await a.inject({ method: 'POST', url: '/api/logout', headers: { cookie: cookies.map((c) => c.split(';')[0]).join('; ') } });
+  assert.ok([].concat(out.headers['set-cookie']).some((c) => c.startsWith('rp_auth=;')));
+  const stale = await a.inject({ url: '/api/me', headers: { cookie: 'rp_auth=1; rp_session=perime' } });
+  assert.equal(stale.json().user, null);
+  assert.ok([].concat(stale.headers['set-cookie']).some((c) => c.startsWith('rp_auth=;')));
 });

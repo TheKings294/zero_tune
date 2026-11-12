@@ -1,5 +1,6 @@
-var CACHE = 'repasse-v6';
-var SHELL = ['/', '/style.css', '/app.js', '/manifest.webmanifest', '/icon.svg'];
+// Les deux marqueurs ci-dessous sont remplacés par le serveur au démarrage (empreinte du contenu).
+var CACHE = 'repasse-__VERSION__';
+var SHELL = __SHELL__;
 
 self.addEventListener('install', function (e) {
   e.waitUntil(caches.open(CACHE).then(function (c) { return c.addAll(SHELL); }).then(function () { return self.skipWaiting(); }));
@@ -26,5 +27,5 @@ self.addEventListener('fetch', function (e) {
     return;
   }
   // Coquille : cache d'abord.
-  e.respondWith(caches.match(req, { ignoreSearch: true }).then(function (hit) { return hit || fetch(req); }));
+  e.respondWith(caches.match(req).then(function (hit) { return hit || fetch(req); }));
 });

@@ -4,6 +4,8 @@ import etag from '@fastify/etag';
 import cookie from '@fastify/cookie';
 import fastifyStatic from '@fastify/static';
 import { fileURLToPath } from 'node:url';
+import { loadSite } from './assets.js';
+import { purge } from './purge.js';
 import { openDb } from './db.js';
 import { seed } from './seed.js';
 import { DUMMY_HASH, hashPassword, newToken, tokenHash, verifyPassword } from './auth.js';
@@ -13,6 +15,8 @@ import { CATEGORIES, validateAnnonce, validateRegister } from './validate.js';
 const PAGE_SIZE = 8;
 const SESSION_MS = 7 * 24 * 3600 * 1000;
 const COOKIE = 'rp_session';
+const HINT = 'rp_auth'; // témoin lisible par le JS : évite l'appel à /api/me pour les visiteurs sans compte
+const YEAR = 365 * 24 * 3600;
 const ORDER = {
   recent: 'created_at DESC, id DESC',
   prix: 'COALESCE(prix_cents, 0) ASC, created_at DESC, id DESC',
@@ -43,10 +47,11 @@ export async function buildApp(db) {
   // Cache mémoire : vidé à chaque écriture (US4/US5 appelleront app.invalidate()).
   const cache = new Map();
   app.decorate('invalidate', () => cache.clear());
-  const memo = (key, build) => {
-    if (!cache.has(key)) cache.set(key, JSON.stringify(build()));
+  const memoVal = (key, build) => {
+    if (!cache.has(key)) cache.set(key, build());
     return cache.get(key);
   };
+  const memo = (key, build) => memoVal(key, () => JSON.stringify(build()));
 
   app.addHook('onSend', async (req, reply) => {
     // Toujours revalider (ETag → 304) : le Service Worker et localStorage gèrent la durée.
@@ -56,6 +61,10 @@ export async function buildApp(db) {
   // Impact carbone : octets réellement envoyés → g CO2e (CO2.js). Compté à l'écriture de la réponse (donc compressé).
   const meter = createMeter(db);
   app.addHook('onRequest', meterHook(meter));
+  app.decorate('meter', meter);
+  const flushTimer = setInterval(meter.flush, 30000); // écritures groupées : 1 transaction / 30 s
+  flushTimer.unref();
+  app.addHook('onClose', async () => { clearInterval(flushTimer); meter.flush(); });
   app.get('/api/impact', async (req, reply) => {
     reply.header('Cache-Control', 'no-store');
     return reply.type('application/json; charset=utf-8').send(meter.summary(Number(req.query.jours) > 0 ? Math.min(Number(req.query.jours), 365) : 30));
@@ -68,7 +77,7 @@ export async function buildApp(db) {
       return reply.code(400).send({ erreur: 'paramètre invalide' });
     }
     const asked = Number.parseInt(req.query.page, 10);
-    const total = count.get({ cat }).n;
+    const total = memoVal(`count:${cat}`, () => count.get({ cat }).n); // le total aussi est en cache
     const pages = Math.max(1, Math.ceil(total / PAGE_SIZE));
     const page = Math.min(Math.max(Number.isNaN(asked) ? 1 : asked, 1), pages);
     const body = memo(`list:${cat}:${tri}:${page}`, () => ({
@@ -104,7 +113,16 @@ export async function buildApp(db) {
     db.prepare('DELETE FROM sessions WHERE expires_at < ?').run(Date.now());
     db.prepare('INSERT INTO sessions (token_hash, user_id, expires_at) VALUES (?, ?, ?)')
       .run(tokenHash(token), userId, Date.now() + SESSION_MS);
-    reply.setCookie(COOKIE, token, { httpOnly: true, sameSite: 'lax', secure, path: '/', maxAge: SESSION_MS / 1000 });
+    const opts = { sameSite: 'lax', secure, path: '/', maxAge: SESSION_MS / 1000 };
+    reply.setCookie(COOKIE, token, { ...opts, httpOnly: true });
+    reply.setCookie(HINT, '1', opts); // simple témoin « une session existe », sans secret
+    touch(userId, true);
+  };
+  // Dernière activité du compte (au plus une écriture par jour) : sert à la purge des comptes inactifs.
+  const touchQ = db.prepare('UPDATE users SET last_seen_at = ? WHERE id = ? AND (last_seen_at IS NULL OR last_seen_at < ?)');
+  const touch = (userId, force = false) => {
+    const now = Date.now();
+    touchQ.run(new Date(now).toISOString(), userId, new Date(now - (force ? 0 : 24 * 3600 * 1000)).toISOString());
   };
   const sessionQ = db.prepare(`SELECT u.id, u.username, u.first_name, u.contact_type, u.contact_value
     FROM sessions s JOIN users u ON u.id = s.user_id WHERE s.token_hash = ? AND s.expires_at > ?`);
@@ -118,17 +136,26 @@ export async function buildApp(db) {
   const requireUser = async (req, reply) => {
     req.user = currentUser(req);
     if (!req.user) return reply.code(401).send({ erreur: 'connexion requise' });
+    touch(req.user.id);
   };
 
   // Freinage des essais de connexion : 10 échecs / 15 min / adresse.
   const fails = new Map();
   const tooMany = (ip) => (fails.get(ip) || []).filter((t) => t > Date.now() - 15 * 60000).length >= 10;
-  const addFail = (ip) => fails.set(ip, [...(fails.get(ip) || []).filter((t) => t > Date.now() - 15 * 60000), Date.now()]);
+  const pruneFails = () => {
+    const since = Date.now() - 15 * 60000;
+    for (const [ip, times] of fails) if (!times.some((t) => t > since)) fails.delete(ip);
+  };
+  const addFail = (ip) => {
+    if (fails.size > 5000) pruneFails(); // borne mémoire même sans purge planifiée
+    fails.set(ip, [...(fails.get(ip) || []).filter((t) => t > Date.now() - 15 * 60000), Date.now()]);
+  };
 
   const userById = db.prepare('SELECT * FROM users WHERE id = ?');
 
   app.get('/api/me', async (req, reply) => {
     const u = currentUser(req);
+    if (!u && req.cookies[HINT]) reply.clearCookie(HINT, { path: '/' }); // session expirée : on retire le témoin
     reply.header('Cache-Control', 'no-store');
     return reply.type('application/json; charset=utf-8').send({ user: u ? publicUser(u) : null });
   });
@@ -165,6 +192,7 @@ export async function buildApp(db) {
     const t = req.cookies[COOKIE];
     if (t) db.prepare('DELETE FROM sessions WHERE token_hash = ?').run(tokenHash(t));
     reply.clearCookie(COOKIE, { path: '/' });
+    reply.clearCookie(HINT, { path: '/' });
     return reply.code(204).send();
   });
 
@@ -197,15 +225,33 @@ export async function buildApp(db) {
     const row = Number.isInteger(id) ? ownQ.get(id, req.user.id) : undefined;
     if (!row) return reply.code(404).send({ erreur: 'introuvable' });
     if (row.statut === 'closed') return reply.code(409).send({ erreur: 'déjà clôturée' });
-    db.prepare("UPDATE annonces SET statut = 'closed' WHERE id = ?").run(id);
+    db.prepare("UPDATE annonces SET statut = 'closed', closed_at = ? WHERE id = ?").run(new Date().toISOString(), id);
     app.invalidate();
     return { id, statut: 'closed' };
   });
 
-  await app.register(fastifyStatic, {
-    root: SITE,
-    cacheControl: false,
+  // ---- tâche de purge (sessions expirées, échecs de connexion, conservation des données) ----
+  app.decorate('purge', () => {
+    const out = purge(db);
+    pruneFails();
+    if (out.annoncesCloturees || out.annoncesDeComptes) app.invalidate();
+    return out;
   });
+
+  // ---- fichiers statiques : empreintes + cache long ; page et Service Worker toujours revalidés ----
+  const site = loadSite(SITE);
+  app.decorate('site', site);
+  const page = async (req, reply) => reply.type('text/html; charset=utf-8').send(site.html);
+  app.get('/', page);
+  app.get('/index.html', page);
+  app.get('/sw.js', async (req, reply) => reply.type('application/javascript; charset=utf-8').send(site.sw));
+  app.addHook('onRequest', async (req, reply) => {
+    const [path, query] = req.url.split('?');
+    if ((req.method === 'GET' || req.method === 'HEAD') && site.fingerprinted.has(path) && query === `v=${site.versions[path.slice(1)]}`) {
+      reply.header('Cache-Control', `public, max-age=${YEAR}, immutable`);
+    }
+  });
+  await app.register(fastifyStatic, { root: SITE, index: false, cacheControl: false });
   return app;
 }
 
@@ -214,5 +260,9 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   // Démo : jeu d'annonces au premier démarrage seulement (base vide).
   if (process.env.SEED_DEMO === '1' && db.prepare('SELECT COUNT(*) n FROM users').get().n === 0) seed(db);
   const app = await buildApp(db);
+  const run = () => console.log('purge', JSON.stringify(app.purge()));
+  run();
+  setInterval(run, 6 * 3600 * 1000).unref();
+  for (const sig of ['SIGTERM', 'SIGINT']) process.on(sig, () => app.close().then(() => process.exit(0)));
   await app.listen({ port: Number(process.env.PORT) || 3000, host: '0.0.0.0' });
 }

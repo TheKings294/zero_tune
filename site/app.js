@@ -324,8 +324,10 @@
     });
   }
 
-  var meP = api('GET', '/api/me').then(function (r) { me = r.ok ? r.json.user : null; }, function () { me = null; })
-    .then(function () { meReady = true; renderNav(); });
+  // Visiteur sans compte (pas de témoin rp_auth) : aucune requête /api/me.
+  var hasHint = /(?:^|;\s*)rp_auth=1/.test(document.cookie);
+  var meP = (hasHint ? api('GET', '/api/me').then(function (r) { me = r.ok ? r.json.user : null; }, function () { me = null; })
+    : Promise.resolve()).then(function () { meReady = true; renderNav(); });
 
   function go(hash) {
     if (location.hash === hash) route(); else location.hash = hash;
@@ -687,6 +689,69 @@
     });
   }
 
+  // ---- impact environnemental : mesures CO2.js du serveur + transfert de la visite en cours ----
+  function fmtNum(n, o) { return n.toLocaleString('fr-FR', o || { maximumFractionDigits: 1 }); }
+  function fmtG(g) { return g == null ? '—' : fmtNum(g, { maximumSignificantDigits: 3 }) + ' g CO2e'; }
+  function fmtKo(o) { return fmtNum(o / 1024) + ' Ko'; }
+
+  function thisVisit() {
+    if (!window.performance || !performance.getEntriesByType) return null;
+    var nav = performance.getEntriesByType('navigation');
+    var res = performance.getEntriesByType('resource');
+    var all = nav.concat(res);
+    var bytes = 0;
+    all.forEach(function (e) { bytes += e.transferSize || 0; });
+    return { requests: all.length, bytes: bytes };
+  }
+
+  function renderImpact() {
+    var me3 = ++token;
+    var box = el('div', {});
+    setView('Impact environnemental', [el('h1', { text: 'Impact environnemental' }),
+      el('p', { 'class': 'lead', text: 'Ce que coûte l’utilisation de Repasse en émissions de CO2, calculé avec la bibliothèque CO2.js (modèle Sustainable Web Design).' }), box]);
+
+    var v = thisVisit();
+    var mine = v ? el('section', { 'aria-labelledby': 'h2-vis' }, [
+      el('h2', { id: 'h2-vis', text: 'Votre visite en cours' }),
+      el('p', { text: v.bytes ? v.requests + ' requêtes, ' + fmtKo(v.bytes) + ' transférés depuis l’ouverture de la page (mesure de votre navigateur).'
+        : 'Rien n’a été transféré : tout vient du cache de votre appareil.' })]) : null;
+    fill(box, [mine, el('p', { 'class': 'note', text: 'Chargement des mesures du serveur…' })]);
+
+    api('GET', '/api/impact?jours=7').then(function (r) {
+      if (me3 !== token) return;
+      if (!r.ok) throw new Error('http');
+      var d = r.json;
+      var kids = [mine];
+      if (!d.visites) {
+        kids.push(el('p', { 'class': 'note', text: 'Pas encore de visite mesurée.' }));
+      } else {
+        kids.push(el('section', { 'aria-labelledby': 'h2-all' }, [
+          el('h2', { id: 'h2-all', text: 'Toutes les visites (mesure du serveur)' }),
+          el('dl', {}, [
+            el('div', {}, [el('dt', { text: 'Coût moyen d’une visite' }), el('dd', { text: fmtG(d.co2_g_par_visite) + ' (' + fmtKo(d.octets_par_visite) + ')' })]),
+            el('div', {}, [el('dt', { text: 'Visites mesurées' }), el('dd', { text: fmtNum(d.visites, { maximumFractionDigits: 0 }) })]),
+            el('div', {}, [el('dt', { text: 'Total émis' }), el('dd', { text: fmtG(d.co2_g) })]),
+            el('div', {}, [el('dt', { text: 'Hébergement' }), el('dd', { text: d.hebergement_vert ? 'Déclaré vert' : 'Non déclaré vert' })])
+          ])]));
+        var rows = d.jours.map(function (j) {
+          return el('tr', {}, [el('th', { scope: 'row', text: j.jour }), el('td', { text: fmtNum(j.visites, { maximumFractionDigits: 0 }) }),
+            el('td', { text: fmtKo(j.octets) }), el('td', { text: fmtG(j.co2_g) }), el('td', { text: fmtG(j.co2_g_par_visite) })]);
+        });
+        kids.push(el('section', { 'aria-labelledby': 'h2-days' }, [
+          el('h2', { id: 'h2-days', text: 'Derniers jours' }),
+          el('div', { 'class': 'table-wrap' }, [el('table', {}, [
+            el('caption', { 'class': 'sr-only', text: 'Visites, transfert et émissions par jour' }),
+            el('thead', {}, [el('tr', {}, ['Jour', 'Visites', 'Transfert', 'Total', 'Par visite'].map(function (t) { return el('th', { scope: 'col', text: t }); }))]),
+            el('tbody', {}, rows)])])]));
+      }
+      kids.push(el('p', { 'class': 'note', text: 'Estimations d’un modèle, pas une mesure d’énergie. Les fichiers servis depuis le cache de l’appareil ne sont pas comptés : c’est justement l’économie recherchée. Objectifs : moins de 500 Ko et 15 requêtes par page.' }));
+      fill(box, kids);
+    }).catch(function (err) {
+      if (me3 !== token) return;
+      fill(box, [mine, stateBox([err.message === 'http' ? 'Mesures indisponibles pour le moment.' : 'Vous êtes hors connexion : les mesures du serveur ne peuvent pas être affichées.'])]);
+    });
+  }
+
   // ---- routage par ancre ----
   var previous = null;
   function route() {
@@ -694,6 +759,10 @@
     var parts = h.split('?');
     var m;
     renderNav();
+    if (parts[0] === '#impact') {
+      previous = null;
+      return renderImpact();
+    }
     if (parts[0] === '#connexion' || parts[0] === '#inscription') {
       previous = null;
       return meP.then(parts[0] === '#connexion' ? renderLogin : renderRegister);

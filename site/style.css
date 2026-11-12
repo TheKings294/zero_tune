@@ -11,7 +11,8 @@ h1:focus-visible{outline:3px solid #0A4D8C;outline-offset:2px}
 header,footer{background:#fff}
 header{border-bottom:1px solid #C9CFCB}
 footer{border-top:1px solid #C9CFCB;font-size:15px;color:#4A504C}
-footer p{margin:0;padding:12px 0}
+footer p{margin:0;padding:0}
+footer .foot p:first-child{padding:12px 0}
 .head{padding-top:12px;padding-bottom:12px}
 .brand{margin:0;font-size:24px;font-weight:800;letter-spacing:-.5px}
 .brand a{color:#1B5E3B;text-decoration:none;min-height:44px;display:inline-flex;align-items:center}
@@ -90,3 +91,9 @@ input:disabled{background:#EEF0EF;border-color:#8A918D;color:#545B57}
 .dialog h2{margin:0 0 8px;font-size:22px}
 .dialog p{margin:0 0 16px}
 .dialog-actions{display:flex;flex-wrap:wrap;gap:10px}
+.foot{display:flex;flex-wrap:wrap;gap:0 16px;align-items:center;justify-content:space-between}
+.foot a{display:inline-flex;align-items:center;min-height:44px;color:#3D5A49}
+.table-wrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:16px}
+th,td{padding:8px 10px;border-bottom:1px solid #C9CFCB;text-align:left;white-space:nowrap}
+thead th{background:#fff;border-bottom:2px solid #6B716D}

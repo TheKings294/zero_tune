@@ -11,6 +11,10 @@ services:
       # 1 dès que le site est servi en HTTPS (cookie de session « Secure »)
       # 1 si l'hébergeur est reconnu « vert » (Green Web Foundation) : réduit le calcul CO2.js
       GREEN_HOSTING: "${GREEN_HOSTING:-0}"
+      # Conservation des données (jours) : voir README
+      RETENTION_CLOSED_DAYS: "${RETENTION_CLOSED_DAYS:-90}"
+      RETENTION_INACTIVE_DAYS: "${RETENTION_INACTIVE_DAYS:-365}"
+      RETENTION_IMPACT_DAYS: "${RETENTION_IMPACT_DAYS:-730}"
       COOKIE_SECURE: "${COOKIE_SECURE:-0}"
     volumes:
       - ./data:/data

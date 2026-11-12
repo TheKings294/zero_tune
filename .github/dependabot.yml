@@ -1,0 +1,19 @@
+# Mises à jour automatiques des dépendances (npm) et de l'image Docker (Node LTS).
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      minor-et-correctifs:
+        update-types: [minor, patch]
+  - package-ecosystem: docker
+    directory: /
+    schedule:
+      interval: weekly
+    ignore:
+      # Rester sur une version LTS (numéros pairs) : pas de version « Current » impaire.
+      - dependency-name: node
+        versions: ["25.x", "27.x"]
