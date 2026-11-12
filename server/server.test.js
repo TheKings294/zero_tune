@@ -377,3 +377,70 @@ test('US6 le client ne peut imposer ni statut, ni propriétaire, ni date', async
   assert.ok(row.created_at > '2020');
   assert.equal((await get('/api/annonces')).json().items[0].titre, 'Champs en trop');
 });
+
+// ---------- CO2.js : coût en g CO2e de chaque visite ----------
+import { co2 } from '@tgwf/co2';
+
+test('CO2 : une visite (GET /) enregistre octets réels et g CO2e calculés par CO2.js', async () => {
+  const m = openDb(':memory:'); seed(m);
+  const a = await buildApp(m);
+  const res = await a.inject({ url: '/', headers: { 'accept-encoding': 'gzip' } });
+  assert.equal(res.statusCode, 200);
+  await new Promise((r) => setTimeout(r, 50));
+  const row = m.prepare('SELECT * FROM impact').get();
+  assert.equal(row.visites, 1);
+  assert.equal(row.requetes, 1);
+  assert.ok(row.octets > 300 && row.octets < 5000, `octets ${row.octets}`); // html compressé + en-têtes
+  const expected = new co2({ model: 'swd', version: 4 }).perByte(row.octets, false);
+  assert.ok(Math.abs(row.co2_g - expected) < 1e-12);
+  assert.ok(row.co2_g > 0);
+});
+
+test('CO2 : les requêtes d’API comptent dans la visite mais ne créent pas de visite', async () => {
+  const m = openDb(':memory:'); seed(m);
+  const a = await buildApp(m);
+  await a.inject({ url: '/' });
+  await a.inject({ url: '/api/annonces' });
+  await a.inject({ url: '/style.css' });
+  await a.inject({ url: '/api/annonces/9999' }); // 404 : mesuré aussi
+  await new Promise((r) => setTimeout(r, 50));
+  const s = (await a.inject({ url: '/api/impact' })).json();
+  assert.equal(s.visites, 1);
+  assert.equal(s.requetes, 4);
+  assert.ok(s.co2_g_par_visite > 0 && s.octets_par_visite > 0);
+  assert.ok(Math.abs(s.co2_g_par_visite - s.co2_g) < 1e-4); // 1 visite : total = par visite
+});
+
+test('CO2 : /api/impact ne se mesure pas lui-même, no-store, jours listés', async () => {
+  const m = openDb(':memory:'); seed(m);
+  const a = await buildApp(m);
+  await a.inject({ url: '/api/impact' });
+  await a.inject({ url: '/api/impact' });
+  const r = await a.inject({ url: '/api/impact' });
+  assert.equal(r.json().requetes, 0);
+  assert.equal(r.headers['cache-control'], 'no-store');
+});
+
+test('CO2 : fichier plus lourd → plus de CO2 (proportionnalité du modèle)', async () => {
+  const m = openDb(':memory:'); seed(m);
+  const a = await buildApp(m);
+  await a.inject({ url: '/app.js' });
+  await a.inject({ url: '/icon.svg' });
+  await new Promise((r) => setTimeout(r, 50));
+  const s = (await a.inject({ url: '/api/impact?jours=1' })).json();
+  assert.equal(s.jours.length, 1);
+  assert.ok(s.octets > 5000); // app.js (non compressé en l'absence d'Accept-Encoding)
+});
+
+test('CO2 : les octets comptés sont ceux envoyés (gzip < non compressé)', async () => {
+  const bytesFor = async (headers) => {
+    const m = openDb(':memory:');
+    const a = await buildApp(m);
+    await a.inject({ url: '/app.js', headers });
+    await new Promise((r) => setTimeout(r, 50));
+    return m.prepare('SELECT octets FROM impact').get().octets;
+  };
+  const gz = await bytesFor({ 'accept-encoding': 'gzip' });
+  const raw = await bytesFor({});
+  assert.ok(gz < raw / 2, `gzip ${gz} vs brut ${raw}`);
+});

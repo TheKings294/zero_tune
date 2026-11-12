@@ -28,3 +28,12 @@ CREATE TABLE IF NOT EXISTS sessions (
   user_id    INTEGER NOT NULL REFERENCES users (id) ON DELETE CASCADE,
   expires_at INTEGER NOT NULL
 );
+
+-- Impact carbone (CO2.js, modèle Sustainable Web Design) : cumul par jour, aucune donnée personnelle.
+CREATE TABLE IF NOT EXISTS impact (
+  jour     TEXT PRIMARY KEY,           -- AAAA-MM-JJ (UTC)
+  visites  INTEGER NOT NULL DEFAULT 0, -- chargements de la page d'accueil (GET /)
+  requetes INTEGER NOT NULL DEFAULT 0,
+  octets   INTEGER NOT NULL DEFAULT 0, -- octets réellement envoyés (corps compressé + en-têtes)
+  co2_g    REAL    NOT NULL DEFAULT 0
+);

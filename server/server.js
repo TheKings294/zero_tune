@@ -7,6 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { openDb } from './db.js';
 import { seed } from './seed.js';
 import { DUMMY_HASH, hashPassword, newToken, tokenHash, verifyPassword } from './auth.js';
+import { createMeter, meterHook } from './impact.js';
 import { CATEGORIES, validateAnnonce, validateRegister } from './validate.js';
 
 const PAGE_SIZE = 8;
@@ -50,6 +51,14 @@ export async function buildApp(db) {
   app.addHook('onSend', async (req, reply) => {
     // Toujours revalider (ETag → 304) : le Service Worker et localStorage gèrent la durée.
     if (!reply.hasHeader('Cache-Control')) reply.header('Cache-Control', 'no-cache');
+  });
+
+  // Impact carbone : octets réellement envoyés → g CO2e (CO2.js). Compté à l'écriture de la réponse (donc compressé).
+  const meter = createMeter(db);
+  app.addHook('onRequest', meterHook(meter));
+  app.get('/api/impact', async (req, reply) => {
+    reply.header('Cache-Control', 'no-store');
+    return reply.type('application/json; charset=utf-8').send(meter.summary(Number(req.query.jours) > 0 ? Math.min(Number(req.query.jours), 365) : 30));
   });
 
   app.get('/api/annonces', async (req, reply) => {
