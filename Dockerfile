@@ -17,4 +17,5 @@ RUN mkdir -p /data && chown node:node /data
 USER node
 ENV PORT=3000 DB_PATH=/data/repasse.db
 EXPOSE 3000
+ENTRYPOINT ["docker-entrypoint.sh"]
 CMD ["node", "server/server.js"]
