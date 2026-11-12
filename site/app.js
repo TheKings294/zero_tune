@@ -353,7 +353,28 @@
       link('#inscription', 'Créer un compte');
     }
     document.getElementById('session').textContent = me ? 'Session : ' + me.prenom : '';
+    document.getElementById('nav-toggle').hidden = !nav.children.length; // pas de bouton « Menu » tant que le menu est vide
+    setMenu(false);
   }
+
+  // ---- menu mobile (bouton « Menu » + liste déroulante) ----
+  var navToggle = document.getElementById('nav-toggle');
+  var navList = document.getElementById('nav');
+  function menuOpen() { return navToggle.getAttribute('aria-expanded') === 'true'; }
+  function setMenu(open, focusButton) {
+    navToggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+    navList.classList.toggle('open', open);
+    if (!open && focusButton) navToggle.focus();
+  }
+  navToggle.addEventListener('click', function () { setMenu(!menuOpen()); });
+  navList.addEventListener('click', function () { setMenu(false); }); // choisir un lien ou se déconnecter referme le menu
+  document.addEventListener('keydown', function (ev) {
+    if ((ev.key === 'Escape' || ev.key === 'Esc') && menuOpen() && navToggle.offsetParent !== null) { ev.preventDefault(); setMenu(false, true); }
+  });
+  document.addEventListener('click', function (ev) { if (menuOpen() && !ev.target.closest('nav')) setMenu(false); });
+  navList.parentNode.addEventListener('focusout', function (ev) {
+    if (menuOpen() && ev.relatedTarget && !navList.parentNode.contains(ev.relatedTarget)) setMenu(false);
+  });
 
   function logout() {
     api('POST', '/api/logout').then(function () {}, function () {}).then(function () {
