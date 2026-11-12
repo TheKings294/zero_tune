@@ -7,7 +7,7 @@ Source : `brief-repasse-v1.xml` (US1, écrans `accueil` + `detail`, sections tec
 - **Un conteneur** Node.js + Fastify : API JSON + fichiers de `site/` (pas de nginx). **SQLite** (`better-sqlite3`) sur volume Docker : pas de second conteneur, sobre ; migrable vers PostgreSQL.
 - **Comptes sans rôle** : table `users`, mots de passe hachés. Aucune route d'auth en US-01.
 - **API** : `GET /api/annonces?page=N` (8 par page, `statut='active'`, `created_at DESC`, sans description) → `{page, pages, total, items[]}` ; `GET /api/annonces/:id` (description + prénom du vendeur ; le contact vient de `users` mais n'est **pas renvoyé**, US3) → `404` si absente ou clôturée. Pagination uniquement, jamais de défilement infini.
-- **Cache, 4 niveaux** : mémoire serveur (invalidée à l'écriture) · gzip/brotli + `ETag` (`304` quasi vide) · **Service Worker** : coquille (html, css, js, manifest) en cache-first, API en stale-while-revalidate · `localStorage`, valable 5 min : retour à la liste = 0 requête.
+- **Cache, 4 niveaux** : mémoire serveur (invalidée à l'écriture) · gzip/brotli + `ETag` (`304` quasi vide) · **Service Worker** : coquille (html, css, js, manifest) en cache-first, API réseau d'abord (liste toujours fraîche) avec cache en secours hors connexion · `localStorage`, valable 5 min : retour à la liste = 0 requête.
 - **Docker** : `Dockerfile` (Node alpine, non-root) + `compose.yml`, service `app`, port interne 3000 publié sur **8080** (`HOST_PORT`, jamais 80/443), volume `./data:/data`, `restart: unless-stopped`.
 - **Cibles (DoD verte)** : < 500 Ko · < 15 requêtes (visé : 7) · affichage < 3 s en 3G / < 1 s en 4G · EcoIndex A/B (DOM < 300 nœuds, 8 cartes) · aucune ressource chargée sans être utilisée. Mesure : F12 Réseau, Samsung S7, ecoindex.fr.
 
@@ -34,4 +34,4 @@ React, ReactDOM, `dc-runtime` (46 Ko mesurés, React ≈ 140 Ko estimés) · con
 | Actives, récentes d'abord | `WHERE statut='active' ORDER BY created_at DESC` |
 
 ## 6. Poids estimé (≤ 500 Ko, 7 requêtes)
-`index.html` 3 Ko · `style.css` 5 Ko · `app.js` 6 Ko · `sw.js` 1 Ko · `manifest` 0,5 Ko · `icon.svg` 0,5 Ko · API liste 3 Ko gzip. **Total ≈ 19 Ko** (détail : +1 Ko, 8 requêtes). Image Docker ≈ 150 Mo, hors budget page.
+`index.html` 3 Ko · `style.css` 5 Ko · `app.js` 6 Ko · `sw.js` 1 Ko · `manifest` 0,5 Ko · `icon.svg` 0,5 Ko · API liste 3 Ko gzip. **Total ≈ 19 Ko** (détail : +1 Ko, 8 requêtes). Image Docker ≈ 380 Mo (mesurée), hors budget page.

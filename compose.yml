@@ -1,0 +1,12 @@
+services:
+  app:
+    build: .
+    restart: unless-stopped
+    ports:
+      # Jamais 80/443 : un reverse proxy pourra s'y brancher plus tard.
+      - "${HOST_PORT:-8080}:3000"
+    environment:
+      SEED_DEMO: "${SEED_DEMO:-1}"
+      DEMO_PASSWORD: "${DEMO_PASSWORD:-demo}"
+    volumes:
+      - ./data:/data
