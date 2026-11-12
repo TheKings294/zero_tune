@@ -17,3 +17,7 @@ updates:
       # Rester sur une version LTS (numéros pairs) : pas de version « Current » impaire.
       - dependency-name: node
         versions: ["25.x", "27.x"]
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly

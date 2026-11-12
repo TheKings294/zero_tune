@@ -4,7 +4,7 @@ import etag from '@fastify/etag';
 import cookie from '@fastify/cookie';
 import fastifyStatic from '@fastify/static';
 import { fileURLToPath } from 'node:url';
-import { loadSite } from './assets.js';
+import { loadSite, pick } from './assets.js';
 import { purge } from './purge.js';
 import { openDb } from './db.js';
 import { seed } from './seed.js';
@@ -238,19 +238,25 @@ export async function buildApp(db) {
     return out;
   });
 
-  // ---- fichiers statiques : empreintes + cache long ; page et Service Worker toujours revalidés ----
+  // ---- fichiers statiques : précompressés, empreintes + cache long ; page et Service Worker toujours revalidés ----
   const site = loadSite(SITE);
   app.decorate('site', site);
-  const page = async (req, reply) => reply.type('text/html; charset=utf-8').send(site.html);
-  app.get('/', page);
-  app.get('/index.html', page);
-  app.get('/sw.js', async (req, reply) => reply.type('application/javascript; charset=utf-8').send(site.sw));
-  app.addHook('onRequest', async (req, reply) => {
-    const [path, query] = req.url.split('?');
-    if ((req.method === 'GET' || req.method === 'HEAD') && site.fingerprinted.has(path) && query === `v=${site.versions[path.slice(1)]}`) {
-      reply.header('Cache-Control', `public, max-age=${YEAR}, immutable`);
-    }
-  });
+  const send = (req, reply, entry, cache) => {
+    const v = pick(entry.variants, req.headers['accept-encoding']);
+    reply.header('Cache-Control', cache).header('Vary', 'Accept-Encoding').type(entry.type);
+    if (v.encoding) reply.header('Content-Encoding', v.encoding);
+    return reply.send(v.body);
+  };
+  app.get('/', async (req, reply) => send(req, reply, site.html, 'no-cache'));
+  app.get('/index.html', async (req, reply) => send(req, reply, site.html, 'no-cache'));
+  app.get('/sw.js', async (req, reply) => send(req, reply, site.sw, 'no-cache'));
+  for (const [path, entry] of Object.entries(site.files)) {
+    app.get(path, async (req, reply) => {
+      const query = req.url.split('?')[1];
+      const current = query === `v=${site.versions[path.slice(1)]}`; // empreinte à jour → cache d'un an
+      return send(req, reply, entry, current ? `public, max-age=${YEAR}, immutable` : 'no-cache');
+    });
+  }
   await app.register(fastifyStatic, { root: SITE, index: false, cacheControl: false });
   return app;
 }

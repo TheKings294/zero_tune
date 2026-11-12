@@ -311,6 +311,69 @@
   </accessibilite>
 
   <!-- ============================================================ -->
+  <!-- 9 bis. ÉVALUATION UTILITÉ / IMPACT (RGESN 1.1)                -->
+  <!-- ============================================================ -->
+  <evaluation-utilite-impact date="2026-11-12">
+    <regle>Toute fonctionnalité est évaluée AVANT son développement : utilité pour un persona (Haute, Moyenne, Faible) et impact environnemental (poids, requêtes, données, énergie : Faible, Moyen, Élevé). Utilité haute et impact faible : on développe. Impact élevé ou utilité faible : on simplifie, on reporte ou on renonce. Chaque évaluation est revue lors de la revue d'écoconception trimestrielle (docs/REVUE-ECOCONCEPTION.md). Mesures de référence : première visite 16,5 Ko, 7 requêtes, ≈ 0,0020 g CO2e (npm run budget).</regle>
+
+    <fonctionnalite id="US1" nom="Consulter les annonces (liste, détail)" persona="kevin" utilite="Haute" impact="Faible">
+      <justification>Besoin central du produit. Liste texte uniquement, 8 annonces par page, ≈ 0,7 Ko par page de liste (Brotli), un seul appel API.</justification>
+      <mesures-reduction>Pagination, aucune image, cache serveur, cache navigateur de 5 minutes, Service Worker, compression précalculée.</mesures-reduction>
+    </fonctionnalite>
+    <fonctionnalite id="US2" nom="Filtrer par catégorie et trier par prix" persona="kevin" utilite="Haute" impact="Faible">
+      <justification>Permet de trouver vite le produit le moins cher. Une requête d'environ 1 à 3 Ko par filtre, évitée si le filtre a déjà été consulté depuis moins de 5 minutes.</justification>
+      <mesures-reduction>Filtre et tri en SQL avant la pagination ; résultats mis en cache côté serveur et dans le navigateur ; pas de recherche par mot-clé (V2).</mesures-reduction>
+    </fonctionnalite>
+    <fonctionnalite id="US3" nom="Révéler le contact du vendeur" persona="kevin" utilite="Haute" impact="Faible">
+      <justification>Sans contact, pas d'échange. Une requête d'environ 100 octets, seulement au clic.</justification>
+      <mesures-reduction>Contact chargé à la demande, jamais mis en cache ni conservé sur l'appareil (discrétion) ; pas de messagerie intégrée (V3).</mesures-reduction>
+    </fonctionnalite>
+    <fonctionnalite id="US4" nom="Publier une annonce (avec inscription et connexion)" persona="catherine" utilite="Haute" impact="Moyen">
+      <justification>Sans offre, pas d'échange. Impact moyen : comptes et mots de passe à stocker (données personnelles), une requête POST d'environ 150 octets.</justification>
+      <mesures-reduction>Texte uniquement (pas de photo), corps limité à 16 Ko, compte minimal (identifiant, prénom, un contact), durées de conservation et purge automatique.</mesures-reduction>
+    </fonctionnalite>
+    <fonctionnalite id="US5" nom="Clôturer une annonce, écran « Mes annonces »" persona="catherine" utilite="Haute" impact="Faible">
+      <justification>Retire les annonces périmées de la liste, ce qui allège les pages et évite les contacts inutiles.</justification>
+      <mesures-reduction>Une requête par clôture ; annonces clôturées supprimées après 90 jours ; invalidation ciblée du cache.</mesures-reduction>
+    </fonctionnalite>
+    <fonctionnalite id="US6" nom="Publication immédiate sans modération" persona="carole" utilite="Haute" impact="Faible">
+      <justification>Évite tout traitement manuel et toute file d'attente ; aucun coût supplémentaire.</justification>
+      <mesures-reduction>Aucun statut intermédiaire ; validation côté serveur des limites de taille.</mesures-reduction>
+    </fonctionnalite>
+    <fonctionnalite id="TRANS-PWA" nom="PWA : manifeste et Service Worker" persona="kevin" utilite="Haute" impact="Faible">
+      <justification>Réduit les transferts (coquille servie depuis l'appareil dès la 2e visite) et permet la consultation hors connexion, utile avec un forfait épuisé. Coût : environ 2 Ko (manifeste, icône, Service Worker).</justification>
+      <mesures-reduction>Cache à empreinte de contenu (aucune version manuelle), liste blanche stricte des réponses mises en cache.</mesures-reduction>
+    </fonctionnalite>
+    <fonctionnalite id="TRANS-IMPACT" nom="Écran « Impact environnemental » (CO2.js)" persona="carole" utilite="Moyenne" impact="Faible">
+      <justification>Rend l'empreinte visible et pilote l'amélioration (RGESN 4.15). Pas d'appel tant que l'écran n'est pas ouvert ; mesures groupées côté serveur, sans donnée personnelle.</justification>
+      <mesures-reduction>Calcul côté serveur (la bibliothèque n'est pas envoyée au navigateur), écritures groupées, cumuls par jour conservés 2 ans.</mesures-reduction>
+    </fonctionnalite>
+    <fonctionnalite id="TRANS-PURGE" nom="Purge et conservation des données" persona="carole" utilite="Haute" impact="Faible">
+      <justification>Évite l'accumulation de données inutiles et limite l'exposition des données personnelles.</justification>
+      <mesures-reduction>Tâche planifiée toutes les 6 heures, durées configurables (0 accepté).</mesures-reduction>
+    </fonctionnalite>
+    <fonctionnalite id="TRANS-MENU" nom="Menu mobile (bouton « Menu »)" persona="kevin" utilite="Moyenne" impact="Faible">
+      <justification>Libère l'espace d'un petit écran ; environ 1 Ko de JavaScript et de CSS, aucune image.</justification>
+      <mesures-reduction>Icône en SVG intégré, aucune bibliothèque, aucune animation.</mesures-reduction>
+    </fonctionnalite>
+
+    <non-retenu>
+      <fonctionnalite id="X-PHOTOS" nom="Photos d'annonces" utilite="Moyenne" impact="Élevé" decision="Renoncé (V2 si besoin avéré)">
+        <justification>Plusieurs centaines de Ko par annonce, stockage et transferts : incompatible avec le budget de 500 Ko et le persona contraint.</justification>
+      </fonctionnalite>
+      <fonctionnalite id="X-SCROLL" nom="Défilement infini" utilite="Faible" impact="Élevé" decision="Renoncé (Won't)">
+        <justification>Charge des contenus que l'utilisateur ne lira pas ; la pagination suffit.</justification>
+      </fonctionnalite>
+      <fonctionnalite id="X-NOTIF" nom="Notifications et messagerie instantanée" utilite="Moyenne" impact="Élevé" decision="Reporté (V3)">
+        <justification>Connexion permanente, service tiers probable et données supplémentaires.</justification>
+      </fonctionnalite>
+      <fonctionnalite id="X-DARK" nom="Mode sombre" utilite="Faible" impact="Moyen" decision="Renoncé (décision d'équipe)">
+        <justification>Duplique la charte et les vérifications de contraste pour un gain d'usage faible.</justification>
+      </fonctionnalite>
+    </non-retenu>
+  </evaluation-utilite-impact>
+
+  <!-- ============================================================ -->
   <!-- 10. HORS PÉRIMÈTRE V1                                         -->
   <!-- ============================================================ -->
   <hors-perimetre>

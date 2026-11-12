@@ -484,19 +484,17 @@ test('purge : annonces clôturées supprimées après 90 jours (closed_at, sinon
   assert.equal(left.length, before - 2);
 });
 
-test('purge : comptes inactifs > 365 jours supprimés avec leurs annonces et sessions ; actifs conservés', async () => {
+test('purge : comptes inactifs > 365 jours supprimés avec leurs annonces ; actifs conservés', async () => {
   const { m } = await fresh();
   m.prepare("UPDATE users SET last_seen_at = ? WHERE username = 'catherine'").run(iso(400));
   m.prepare("UPDATE users SET last_seen_at = ? WHERE username = 'kevin'").run(iso(5));
   m.prepare("UPDATE users SET created_at = ? WHERE username = 'mehdi'").run(iso(500)); // jamais connecté depuis la création
   const cat = m.prepare("SELECT id FROM users WHERE username = 'catherine'").get().id;
-  m.prepare('INSERT INTO sessions VALUES (?, ?, ?)').run('s', cat, Date.now() + 100000);
   const r = purge(m);
   assert.equal(r.comptes, 2);
   assert.ok(r.annoncesDeComptes >= 5); // 3 de Catherine + 2 de Mehdi
   assert.equal(m.prepare("SELECT COUNT(*) n FROM users WHERE username IN ('catherine','mehdi')").get().n, 0);
   assert.equal(m.prepare('SELECT COUNT(*) n FROM annonces WHERE user_id = ?').get(cat).n, 0);
-  assert.equal(m.prepare('SELECT COUNT(*) n FROM sessions').get().n, 0);
   assert.equal(m.prepare("SELECT COUNT(*) n FROM users WHERE username = 'kevin'").get().n, 1);
 });
 
@@ -551,6 +549,7 @@ test('cache : le total (COUNT) est en cache serveur, rafraîchi seulement à l�
 test('statiques : URL empreintes en cache long immuable, page et Service Worker toujours revalidés', async () => {
   const { a } = await fresh();
   const html = (await a.inject({ url: '/' })).body;
+  assert.match(html, /href="\/manifest\.webmanifest\?v=[0-9a-f]{10}"/);
   const css = html.match(/href="(\/style\.css\?v=[0-9a-f]{10})"/)[1];
   const js = html.match(/src="(\/app\.js\?v=[0-9a-f]{10})"/)[1];
   const long = (await a.inject({ url: js })).headers['cache-control'];
@@ -561,11 +560,16 @@ test('statiques : URL empreintes en cache long immuable, page et Service Worker 
   assert.equal((await a.inject({ url: '/app.js' })).headers['cache-control'], 'no-cache'); // sans empreinte : pas de cache long
   assert.equal((await a.inject({ url: '/app.js?v=perime' })).headers['cache-control'], 'no-cache'); // mauvaise empreinte
   assert.equal((await a.inject({ url: '/manifest.webmanifest' })).headers['cache-control'], 'no-cache');
+  const manifest = html.match(/href="(\/manifest\.webmanifest\?v=[0-9a-f]{10})"/)[1];
+  const mres = await a.inject({ url: manifest });
+  assert.match(mres.headers['cache-control'], /immutable/);
+  assert.match(mres.headers['content-type'], /manifest\+json/);
 });
 
 test('statiques : le Service Worker reçoit une version issue du contenu et la liste de la coquille empreinte', async () => {
   const { a } = await fresh();
   const sw = (await a.inject({ url: '/sw.js' })).body;
+  assert.ok(sw.includes(`/manifest.webmanifest?v=${a.site.versions['manifest.webmanifest']}`));
   assert.ok(!sw.includes('__VERSION__') && !sw.includes('__SHELL__'));
   assert.ok(sw.includes(`repasse-${a.site.version}`));
   assert.ok(sw.includes(`/app.js?v=${a.site.versions['app.js']}`));
@@ -607,4 +611,64 @@ test('hébergement : /carbon.txt déclare OVHcloud, en texte brut', async () => 
   assert.match(res.headers['content-type'], /text\/plain/);
   assert.match(res.body, /\[upstream\]/);
   assert.match(res.body, /domain = 'ovhcloud\.com'/);
+});
+
+// ---------- RGESN 7.2 : une durée de conservation à 0 est acceptée ----------
+import { readDays, readRetention } from './purge.js';
+
+test('conservation : 0 est une valeur valide, absent/vide/invalide/négatif retombent sur le défaut', () => {
+  assert.equal(readDays('0', 90), 0);
+  assert.equal(readDays(0, 90), 0);
+  assert.equal(readDays('30', 90), 30);
+  for (const bad of [undefined, '', '  ', 'abc', '-5', 'NaN']) assert.equal(readDays(bad, 90), 90, String(bad));
+  assert.deepEqual(readRetention({ RETENTION_CLOSED_DAYS: '0', RETENTION_INACTIVE_DAYS: '', RETENTION_IMPACT_DAYS: '10' }),
+    { closedDays: 0, inactiveDays: 365, impactDays: 10 });
+});
+
+test('conservation à 0 : les annonces clôturées sont supprimées au passage suivant', async () => {
+  const { m } = await fresh();
+  const id = m.prepare('SELECT id FROM annonces LIMIT 1').get().id;
+  m.prepare("UPDATE annonces SET statut = 'closed', closed_at = ? WHERE id = ?").run(new Date(Date.now() - 1000).toISOString(), id);
+  assert.equal(purge(m, { closedDays: 0 }).annoncesCloturees, 1);
+  assert.equal(m.prepare('SELECT COUNT(*) n FROM annonces WHERE id = ?').get(id).n, 0);
+});
+
+test('conservation à 0 : jamais un compte qui a une session valide', async () => {
+  const { m } = await fresh();
+  const kevin = m.prepare("SELECT id FROM users WHERE username = 'kevin'").get().id;
+  m.prepare('INSERT INTO sessions VALUES (?, ?, ?)').run('actif', kevin, Date.now() + 100000);
+  const r = purge(m, { inactiveDays: 0 });
+  assert.equal(r.comptes, 12); // 13 comptes de démonstration, sauf celui qui a une session
+  assert.equal(m.prepare('SELECT COUNT(*) n FROM users').get().n, 1);
+  assert.equal(m.prepare("SELECT username FROM users").get().username, 'kevin');
+});
+
+test('précompression : Brotli, gzip ou brut selon le client, jamais recompressé, contenu identique', async () => {
+  const { brotliDecompressSync, gunzipSync } = await import('node:zlib');
+  const { readFileSync } = await import('node:fs');
+  const { a } = await fresh();
+  const src = readFileSync(new URL('../site/app.js', import.meta.url));
+  const url = `/app.js?v=${a.site.versions['app.js']}`;
+  const br = await a.inject({ url, headers: { 'accept-encoding': 'gzip, deflate, br' } });
+  const gz = await a.inject({ url, headers: { 'accept-encoding': 'gzip' } });
+  const raw = await a.inject({ url });
+  assert.equal(br.headers['content-encoding'], 'br');
+  assert.equal(gz.headers['content-encoding'], 'gzip');
+  assert.equal(raw.headers['content-encoding'], undefined);
+  assert.equal(br.headers.vary, 'Accept-Encoding');
+  assert.ok(br.rawPayload.length < gz.rawPayload.length && gz.rawPayload.length < raw.rawPayload.length);
+  assert.ok(brotliDecompressSync(br.rawPayload).equals(src));
+  assert.ok(gunzipSync(gz.rawPayload).equals(src));
+  assert.ok(raw.rawPayload.equals(src));
+  assert.notEqual(br.headers.etag, gz.headers.etag); // un ETag par représentation
+  const cached = await a.inject({ url, headers: { 'accept-encoding': 'br', 'if-none-match': br.headers.etag } });
+  assert.equal(cached.statusCode, 304);
+});
+
+test('précompression : l’accueil et le Service Worker sont aussi servis compressés', async () => {
+  const { a } = await fresh();
+  for (const u of ['/', '/sw.js']) {
+    const r = await a.inject({ url: u, headers: { 'accept-encoding': 'br' } });
+    assert.equal(r.headers['content-encoding'], 'br', u);
+  }
 });

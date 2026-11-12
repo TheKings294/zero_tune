@@ -6,13 +6,22 @@ WORKDIR /app
 COPY package*.json ./
 RUN npm ci --omit=dev
 
-# Étape 2 : image finale, sans outils de compilation
+# Étape 2 : minification du front (esbuild, dépendance de développement : absente de l'image finale)
+FROM node:24-slim AS build
+WORKDIR /app
+COPY package*.json ./
+RUN npm ci
+COPY scripts ./scripts
+COPY site ./site
+RUN npm run build
+
+# Étape 3 : image finale, sans outils de compilation
 FROM node:24-slim
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY package*.json ./
 COPY server ./server
-COPY site ./site
+COPY --from=build /app/dist/site ./site
 RUN mkdir -p /data && chown node:node /data
 USER node
 ENV PORT=3000 DB_PATH=/data/repasse.db

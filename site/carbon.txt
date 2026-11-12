@@ -1,5 +1,5 @@
 # carbon.txt — déclaration d'hébergement de Repasse (https://carbontxt.org)
-# Servi à l'adresse /carbon.txt. Hébergeur en amont : OVHcloud.
+# Servi à l'adresse /carbon.txt. Hébergeur en amont : OVHcloud, datacenter de Gravelines (France).
 # Vérification : npm run hosting:check -- ovhcloud.com  (Green Web Foundation)
 
 [upstream]

@@ -715,14 +715,17 @@
   function fmtG(g) { return g == null ? '—' : fmtNum(g, { maximumSignificantDigits: 3 }) + ' g CO2e'; }
   function fmtKo(o) { return fmtNum(o / 1024) + ' Ko'; }
 
+  // Transfert de la visite en cours, d'après le navigateur. `available: false` quand il ne renseigne pas
+  // transferSize (anciens navigateurs) : on n'affiche alors aucune valeur plutôt qu'un « 0 » trompeur.
   function thisVisit() {
     if (!window.performance || !performance.getEntriesByType) return null;
-    var nav = performance.getEntriesByType('navigation');
-    var res = performance.getEntriesByType('resource');
-    var all = nav.concat(res);
+    var all = performance.getEntriesByType('navigation').concat(performance.getEntriesByType('resource'));
+    if (!all.length) return null;
     var bytes = 0;
+    var numeric = all.every(function (e) { return typeof e.transferSize === 'number'; });
+    var informative = all.some(function (e) { return e.transferSize > 0 || e.encodedBodySize > 0; });
     all.forEach(function (e) { bytes += e.transferSize || 0; });
-    return { requests: all.length, bytes: bytes };
+    return { requests: all.length, bytes: bytes, available: numeric && informative };
   }
 
   function renderImpact() {
@@ -734,7 +737,8 @@
     var v = thisVisit();
     var mine = v ? el('section', { 'aria-labelledby': 'h2-vis' }, [
       el('h2', { id: 'h2-vis', text: 'Votre visite en cours' }),
-      el('p', { text: v.bytes ? v.requests + ' requêtes, ' + fmtKo(v.bytes) + ' transférés depuis l’ouverture de la page (mesure de votre navigateur).'
+      el('p', { text: !v.available ? 'Votre navigateur ne fournit pas cette mesure.'
+        : v.bytes ? v.requests + ' requêtes, ' + fmtKo(v.bytes) + ' transférés depuis l’ouverture de la page (mesure de votre navigateur).'
         : 'Rien n’a été transféré : tout vient du cache de votre appareil.' })]) : null;
     fill(box, [mine, el('p', { 'class': 'note', text: 'Chargement des mesures du serveur…' })]);
 

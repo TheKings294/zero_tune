@@ -2,19 +2,25 @@ services:
   app:
     build: .
     restart: unless-stopped
+    # Ressources bornées (RGESN 3.2) : un conteneur Node + SQLite pour un lycée n'a pas besoin de plus.
+    # Mesuré après 300 pages et 5 connexions : ≈ 50 Mo de RAM, 0,03 % de CPU. Ajuster si la charge réelle l'exige (voir docs/REVUE-ECOCONCEPTION.md).
+    mem_limit: "${APP_MEM_LIMIT:-256m}"
+    memswap_limit: "${APP_MEM_LIMIT:-256m}" # pas de swap : un dépassement redémarre le conteneur au lieu de ralentir la machine
+    cpus: "${APP_CPUS:-0.5}"
+    pids_limit: 128
     ports:
       # Jamais 80/443 : un reverse proxy pourra s'y brancher plus tard.
       - "${HOST_PORT:-8080}:3000"
     environment:
       SEED_DEMO: "${SEED_DEMO:-1}"
       DEMO_PASSWORD: "${DEMO_PASSWORD:-demo}"
-      # 1 dès que le site est servi en HTTPS (cookie de session « Secure »)
-      # 1 si l'hébergeur est reconnu « vert » (Green Web Foundation) : réduit le calcul CO2.js
+      # 1 : hébergeur OVHcloud référencé « vert » par la Green Web Foundation (voir docs/HEBERGEMENT.md)
       GREEN_HOSTING: "${GREEN_HOSTING:-1}"
-      # Conservation des données (jours) : voir README
+      # Conservation des données, en jours (0 = ne rien garder) : voir README
       RETENTION_CLOSED_DAYS: "${RETENTION_CLOSED_DAYS:-90}"
       RETENTION_INACTIVE_DAYS: "${RETENTION_INACTIVE_DAYS:-365}"
       RETENTION_IMPACT_DAYS: "${RETENTION_IMPACT_DAYS:-730}"
+      # 1 dès que le site est servi en HTTPS (cookie de session « Secure »)
       COOKIE_SECURE: "${COOKIE_SECURE:-0}"
     volumes:
       - ./data:/data

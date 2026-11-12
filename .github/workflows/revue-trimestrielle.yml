@@ -1,0 +1,26 @@
+# Planifie la revue d'écoconception (RGESN 1.4) : un ticket avec la liste de contrôle,
+# le 1er janvier, avril, juillet et octobre. Déclenchement manuel possible.
+name: Revue d'écoconception trimestrielle
+
+on:
+  schedule:
+    - cron: '0 7 1 1,4,7,10 *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  ticket:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Créer le ticket de revue
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          trimestre="$(date -u +%Y)-T$(( ($(date -u +%-m) - 1) / 3 + 1 ))"
+          gh issue create \
+            --title "Revue d'écoconception $trimestre" \
+            --body-file .github/revue-ecoconception.md
