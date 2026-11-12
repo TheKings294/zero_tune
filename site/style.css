@@ -43,3 +43,7 @@ dl{margin:14px 0;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:
 dt{font-weight:600;color:#4A504C}
 dd{margin:0 0 10px}
 .desc{margin:0;white-space:pre-line}
+.filters{display:flex;flex-wrap:wrap;gap:12px;background:#fff;border:1px solid #C9CFCB;border-radius:10px;padding:12px;margin:12px 0}
+.filters>div{flex:1 1 200px;min-width:0}
+label{display:block;font-weight:600;margin-bottom:4px}
+select{width:100%;min-height:44px;padding:8px 10px;font:inherit;color:#1A1C1B;background:#fff;border:2px solid #6B716D;border-radius:8px}

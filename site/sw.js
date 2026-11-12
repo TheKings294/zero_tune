@@ -1,4 +1,4 @@
-var CACHE = 'repasse-v1';
+var CACHE = 'repasse-v2';
 var SHELL = ['/', '/style.css', '/app.js', '/manifest.webmanifest', '/icon.svg'];
 
 self.addEventListener('install', function (e) {

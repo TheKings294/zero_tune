@@ -7,6 +7,12 @@ import { openDb } from './db.js';
 import { seed } from './seed.js';
 
 const PAGE_SIZE = 8;
+export const CATEGORIES = ['Mathématiques', 'Français', 'Langues', 'Sciences', 'Histoire-Géo',
+  'Informatique', 'Calculatrices', 'Fournitures', 'Livres', 'Autre'];
+const ORDER = {
+  recent: 'created_at DESC, id DESC',
+  prix: 'COALESCE(prix_cents, 0) ASC, created_at DESC, id DESC',
+};
 const SITE = fileURLToPath(new URL('../site/', import.meta.url));
 
 export async function buildApp(db) {
@@ -14,9 +20,15 @@ export async function buildApp(db) {
   await app.register(compress);
   await app.register(etag);
 
-  const listQ = db.prepare(`SELECT id, titre, prix_cents, categorie, created_at FROM annonces
-    WHERE statut = 'active' ORDER BY created_at DESC, id DESC LIMIT ? OFFSET ?`);
-  const countQ = db.prepare("SELECT COUNT(*) AS n FROM annonces WHERE statut = 'active'");
+  // Filtre catégorie facultatif ; ORDER vient d'une liste fermée (jamais d'une entrée brute).
+  const listQ = {};
+  for (const tri of Object.keys(ORDER)) {
+    listQ[tri] = db.prepare(`SELECT id, titre, prix_cents, categorie, created_at FROM annonces
+      WHERE statut = 'active' AND (@cat IS NULL OR categorie = @cat)
+      ORDER BY ${ORDER[tri]} LIMIT @limit OFFSET @offset`);
+  }
+  const count = db.prepare(`SELECT COUNT(*) AS n FROM annonces
+    WHERE statut = 'active' AND (@cat IS NULL OR categorie = @cat)`);
   const oneQ = db.prepare(`SELECT a.id, a.titre, a.description, a.prix_cents, a.categorie, a.created_at,
       u.first_name AS vendeur
     FROM annonces a JOIN users u ON u.id = a.user_id
@@ -36,12 +48,18 @@ export async function buildApp(db) {
   });
 
   app.get('/api/annonces', async (req, reply) => {
+    const cat = req.query.categorie || null;
+    const tri = req.query.tri || 'recent';
+    if ((cat !== null && !CATEGORIES.includes(cat)) || !(tri in ORDER)) {
+      return reply.code(400).send({ erreur: 'paramètre invalide' });
+    }
     const asked = Number.parseInt(req.query.page, 10);
-    const total = countQ.get().n;
+    const total = count.get({ cat }).n;
     const pages = Math.max(1, Math.ceil(total / PAGE_SIZE));
     const page = Math.min(Math.max(Number.isNaN(asked) ? 1 : asked, 1), pages);
-    const body = memo(`list:${page}`, () => ({
-      page, pages, total, items: listQ.all(PAGE_SIZE, (page - 1) * PAGE_SIZE),
+    const body = memo(`list:${cat}:${tri}:${page}`, () => ({
+      page, pages, total, categorie: cat, tri,
+      items: listQ[tri].all({ cat, limit: PAGE_SIZE, offset: (page - 1) * PAGE_SIZE }),
     }));
     return reply.type('application/json; charset=utf-8').send(body);
   });

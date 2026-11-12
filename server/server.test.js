@@ -69,6 +69,8 @@ test('détail : 404 si inconnue, invalide ou clôturée', async () => {
   db.prepare("UPDATE annonces SET statut = 'closed' WHERE id = ?").run(id);
   app.invalidate();
   assert.equal((await get(`/api/annonces/${id}`)).statusCode, 404);
+  db.prepare("UPDATE annonces SET statut = 'active' WHERE id = ?").run(id);
+  app.invalidate();
 });
 
 test('cache HTTP : ETag + no-cache, 304 sur If-None-Match', async () => {
@@ -88,4 +90,51 @@ test('schéma : contact dans users, pas dans annonces', () => {
   const cols = (t) => db.prepare(`PRAGMA table_info(${t})`).all().map((c) => c.name);
   assert.ok(cols('users').includes('contact_value'));
   assert.ok(!cols('annonces').includes('contact_value'));
+});
+
+test('US2 filtre : « Mathématiques » ne renvoie que des annonces de maths', async () => {
+  const body = (await get('/api/annonces?categorie=' + encodeURIComponent('Mathématiques'))).json();
+  assert.equal(body.total, 4);
+  assert.ok(body.items.every((i) => i.categorie === 'Mathématiques'));
+  assert.equal(body.categorie, 'Mathématiques');
+});
+
+test('US2 filtre : pagination calculée après filtre, clôturées exclues', async () => {
+  const c = encodeURIComponent('Calculatrices');
+  assert.equal((await get('/api/annonces?categorie=' + c)).json().total, 3);
+  db.prepare("UPDATE annonces SET statut = 'closed' WHERE categorie = 'Calculatrices'").run();
+  app.invalidate();
+  const body = (await get('/api/annonces?categorie=' + c)).json();
+  assert.deepEqual([body.total, body.items.length, body.pages], [0, 0, 1]);
+  db.prepare("UPDATE annonces SET statut = 'active' WHERE categorie = 'Calculatrices'").run();
+  app.invalidate();
+});
+
+test('US2 tri prix : dons d’abord puis prix croissant', async () => {
+  const { items } = (await get('/api/annonces?tri=prix')).json();
+  const prix = items.map((i) => i.prix_cents || 0);
+  assert.deepEqual(prix, [...prix].sort((a, b) => a - b));
+  assert.equal(items[0].prix_cents, null);
+});
+
+test('US2 tri prix sur toutes les pages : ordre global croissant', async () => {
+  const prix = [];
+  for (const p of [1, 2, 3]) {
+    prix.push(...(await get(`/api/annonces?tri=prix&page=${p}`)).json().items.map((i) => i.prix_cents || 0));
+  }
+  assert.equal(prix.length, 20);
+  assert.deepEqual(prix, [...prix].sort((a, b) => a - b));
+});
+
+test('US2 paramètres invalides : 400', async () => {
+  assert.equal((await get('/api/annonces?categorie=Cuisine')).statusCode, 400);
+  assert.equal((await get('/api/annonces?tri=prix;DROP')).statusCode, 400);
+  assert.equal((await get("/api/annonces?categorie=' OR 1=1 --")).statusCode, 400);
+});
+
+test('US2 cache : clés distinctes par filtre (pas de mélange)', async () => {
+  const a = (await get('/api/annonces')).json();
+  const b = (await get('/api/annonces?categorie=Livres')).json();
+  assert.notEqual(a.total, b.total);
+  assert.equal((await get('/api/annonces')).json().total, a.total);
 });
