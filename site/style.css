@@ -47,3 +47,12 @@ dd{margin:0 0 10px}
 .filters>div{flex:1 1 200px;min-width:0}
 label{display:block;font-weight:600;margin-bottom:4px}
 select{width:100%;min-height:44px;padding:8px 10px;font:inherit;color:#1A1C1B;background:#fff;border:2px solid #6B716D;border-radius:8px}
+.contact{margin-top:16px;border-top:1px solid #C9CFCB;padding-top:14px}
+.contact h2{margin-top:0}
+.contact-zone{display:flex;flex-direction:column;gap:6px;align-items:flex-start;margin-top:10px}
+.contact-kind{margin:0;font-weight:600}
+.contact-zone .btn{word-break:break-all;justify-content:flex-start}
+.btn-primary{background:#1B5E3B;color:#fff}
+.btn-primary:hover{background:#123F28;border-color:#123F28}
+.btn[disabled]{border-color:#8A918D;color:#545B57;background:#EEF0EF;cursor:not-allowed}
+.err{margin:8px 0 0;color:#B3261E;font-weight:600}

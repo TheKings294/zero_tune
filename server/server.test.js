@@ -138,3 +138,32 @@ test('US2 cache : clés distinctes par filtre (pas de mélange)', async () => {
   assert.notEqual(a.total, b.total);
   assert.equal((await get('/api/annonces')).json().total, a.total);
 });
+
+test('US3 contact : renvoyé à la demande, type et valeur du vendeur (table users)', async () => {
+  const { id } = (await get('/api/annonces')).json().items[1]; // annonce de Catherine
+  const res = await get(`/api/annonces/${id}/contact`);
+  assert.equal(res.statusCode, 200);
+  assert.deepEqual(res.json(), { type: 'email', valeur: 'catherine.l@exemple.fr' });
+  assert.equal(res.headers['cache-control'], 'no-store');
+});
+
+test('US3 contact : téléphone pour un vendeur qui a choisi le téléphone', async () => {
+  const row = db.prepare("SELECT a.id FROM annonces a JOIN users u ON u.id = a.user_id WHERE u.contact_type = 'tel' LIMIT 1").get();
+  assert.equal((await get(`/api/annonces/${row.id}/contact`)).json().type, 'tel');
+});
+
+test('US3 contact : jamais dans la liste ni le détail', async () => {
+  const list = (await get('/api/annonces')).body;
+  const { id } = JSON.parse(list).items[0];
+  const detail = (await get(`/api/annonces/${id}`)).body;
+  for (const body of [list, detail]) assert.ok(!/@exemple|06 \d\d|contact/.test(body));
+});
+
+test('US3 contact : 404 si annonce inconnue, invalide ou clôturée', async () => {
+  assert.equal((await get('/api/annonces/99999/contact')).statusCode, 404);
+  assert.equal((await get('/api/annonces/abc/contact')).statusCode, 404);
+  const { id } = (await get('/api/annonces')).json().items[0];
+  db.prepare("UPDATE annonces SET statut = 'closed' WHERE id = ?").run(id);
+  assert.equal((await get(`/api/annonces/${id}/contact`)).statusCode, 404);
+  db.prepare("UPDATE annonces SET statut = 'active' WHERE id = ?").run(id);
+});

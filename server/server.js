@@ -44,7 +44,7 @@ export async function buildApp(db) {
 
   app.addHook('onSend', async (req, reply) => {
     // Toujours revalider (ETag → 304) : le Service Worker et localStorage gèrent la durée.
-    reply.header('Cache-Control', 'no-cache');
+    if (!reply.hasHeader('Cache-Control')) reply.header('Cache-Control', 'no-cache');
   });
 
   app.get('/api/annonces', async (req, reply) => {
@@ -69,6 +69,18 @@ export async function buildApp(db) {
     const row = Number.isInteger(id) ? oneQ.get(id) : undefined;
     if (!row) return reply.code(404).send({ erreur: 'introuvable' });
     return reply.type('application/json; charset=utf-8').send(memo(`one:${id}`, () => row));
+  });
+
+  // Contact : lu à la demande seulement (US3), jamais mis en cache.
+  const contactQ = db.prepare(`SELECT u.contact_type AS type, u.contact_value AS valeur
+    FROM annonces a JOIN users u ON u.id = a.user_id
+    WHERE a.id = ? AND a.statut = 'active'`);
+  app.get('/api/annonces/:id/contact', async (req, reply) => {
+    const id = Number(req.params.id);
+    const row = Number.isInteger(id) ? contactQ.get(id) : undefined;
+    reply.header('Cache-Control', 'no-store');
+    if (!row) return reply.code(404).send({ erreur: 'introuvable' });
+    return reply.type('application/json; charset=utf-8').send(row);
   });
 
   await app.register(fastifyStatic, {

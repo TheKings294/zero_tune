@@ -215,6 +215,56 @@
     });
   }
 
+  // ---- contact (US3) : lu à la demande, jamais conservé ----
+  function contactLink(c, a) {
+    if (c.type === 'email') {
+      return { kind: 'Email', href: 'mailto:' + c.valeur + '?subject=' + encodeURIComponent('Repasse : ' + a.titre) };
+    }
+    var digits = c.valeur.replace(/\D/g, '');
+    return { kind: 'Téléphone', href: 'tel:' + (digits.charAt(0) === '0' ? '+33' + digits.slice(1) : '+' + digits) };
+  }
+
+  function contactSection(a) {
+    var live = el('div', { role: 'status', 'class': 'sr-only' });
+    var zone = el('div', { 'class': 'contact-zone' });
+    var msg = el('p', { 'class': 'err', hidden: 'hidden' });
+    var btn = el('button', { 'class': 'btn btn-primary', type: 'button', text: 'Afficher le contact de ' + a.vendeur });
+    zone.appendChild(btn);
+
+    btn.addEventListener('click', function () {
+      btn.disabled = true;
+      btn.textContent = 'Affichage…';
+      msg.hidden = true;
+      function fail(text) {
+        btn.disabled = false;
+        btn.textContent = 'Afficher le contact de ' + a.vendeur;
+        msg.textContent = text;
+        msg.hidden = false;
+      }
+      fetch('/api/annonces/' + a.id + '/contact').then(function (res) {
+        if (res.status === 404) return fail("Cette annonce n'existe plus ou a été clôturée.");
+        if (!res.ok) return fail('Impossible d’afficher le contact, réessayez.');
+        return res.json().then(function (c) {
+          var l = contactLink(c, a);
+          var link = el('a', { 'class': 'btn', href: l.href, text: c.valeur });
+          zone.textContent = '';
+          zone.appendChild(el('p', { 'class': 'contact-kind', text: l.kind + ' :' }));
+          zone.appendChild(link);
+          live.textContent = 'Contact de ' + a.vendeur + ' affiché : ' + l.kind.toLowerCase() + ', ' + c.valeur + '.';
+          link.focus();
+        });
+      }, function () {
+        fail('Vous êtes hors connexion : le contact ne peut pas être affiché.');
+      });
+    });
+
+    return el('section', { 'class': 'contact', 'aria-labelledby': 'h2-contact' }, [
+      el('h2', { id: 'h2-contact', text: 'Contacter ' + a.vendeur }),
+      el('p', { 'class': 'lead', text: "Le contact reste masqué jusqu'à votre demande. Vous échangez directement, sans passer par l'application." }),
+      zone, msg, live
+    ]);
+  }
+
   // ---- écran détail ----
   function backLink(st) {
     return el('p', {}, [el('a', { 'class': 'back', href: listHash(st) }, [document.createTextNode('← Retour aux annonces')])]);
@@ -244,7 +294,8 @@
             el('div', {}, [el('dt', { text: 'Proposée par' }), el('dd', { text: a.vendeur })])
           ]),
           el('h2', { text: 'Description' }),
-          el('p', { 'class': 'desc', text: a.description })
+          el('p', { 'class': 'desc', text: a.description }),
+          contactSection(a)
         ])
       ]);
     }).catch(function (err) {

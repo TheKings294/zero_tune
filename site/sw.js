@@ -1,4 +1,4 @@
-var CACHE = 'repasse-v2';
+var CACHE = 'repasse-v3';
 var SHELL = ['/', '/style.css', '/app.js', '/manifest.webmanifest', '/icon.svg'];
 
 self.addEventListener('install', function (e) {
@@ -15,6 +15,7 @@ self.addEventListener('fetch', function (e) {
   var req = e.request;
   var url = new URL(req.url);
   if (req.method !== 'GET' || url.origin !== location.origin) return;
+  if (/\/contact$/.test(url.pathname)) return; // contact : jamais en cache, réseau uniquement
   if (url.pathname.indexOf('/api/') === 0) {
     // API : réseau d'abord (liste toujours à jour), cache en secours hors connexion.
     e.respondWith(fetch(req).then(function (res) {
