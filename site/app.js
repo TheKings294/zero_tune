@@ -58,7 +58,7 @@
   }
 
   function setView(title, nodes) {
-    document.title = title + ' — Repasse';
+    document.title = title + ' — ZeroTune';
     vue.textContent = '';
     nodes.forEach(function (n) { if (n) vue.appendChild(n); });
     var h1 = document.getElementById('banner') || vue.querySelector('h1');
@@ -168,7 +168,7 @@
     } else {
       document.getElementById('f-cat').value = st.cat;
       document.getElementById('f-tri').value = st.tri;
-      document.title = (st.cat ? 'Annonces — ' + st.cat : 'Annonces') + ' — Repasse';
+      document.title = (st.cat ? 'Annonces — ' + st.cat : 'Annonces') + ' — ZeroTune';
       if (!keepFocus) { var h = vue.querySelector('h1'); h.setAttribute('tabindex', '-1'); h.focus(); window.scrollTo(0, 0); }
     }
     var compteur = document.getElementById('compteur');
@@ -221,7 +221,7 @@
   // ---- contact (US3) : lu à la demande, jamais conservé ----
   function contactLink(c, a) {
     if (c.type === 'email') {
-      return { kind: 'Email', href: 'mailto:' + c.valeur + '?subject=' + encodeURIComponent('Repasse : ' + a.titre) };
+      return { kind: 'Email', href: 'mailto:' + c.valeur + '?subject=' + encodeURIComponent('ZeroTune : ' + a.titre) };
     }
     var digits = c.valeur.replace(/\D/g, '');
     return { kind: 'Téléphone', href: 'tel:' + (digits.charAt(0) === '0' ? '+33' + digits.slice(1) : '+' + digits) };
@@ -763,7 +763,7 @@
     var me3 = ++token;
     var box = el('div', {});
     setView('Impact environnemental', [el('h1', { text: 'Impact environnemental' }),
-      el('p', { 'class': 'lead', text: 'Ce que coûte l’utilisation de Repasse en émissions de CO2, calculé avec la bibliothèque CO2.js (modèle Sustainable Web Design).' }), box]);
+      el('p', { 'class': 'lead', text: 'Ce que coûte l’utilisation de ZeroTune en émissions de CO2, calculé avec la bibliothèque CO2.js (modèle Sustainable Web Design).' }), box]);
 
     var v = thisVisit();
     var mine = v ? el('section', { 'aria-labelledby': 'h2-vis' }, [
