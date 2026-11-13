@@ -1,5 +1,5 @@
 // Les deux marqueurs ci-dessous sont remplacés par le serveur au démarrage (empreinte du contenu).
-var CACHE = 'repasse-__VERSION__';
+var CACHE = 'zerotune-__VERSION__';
 var SHELL = __SHELL__;
 
 self.addEventListener('install', function (e) {

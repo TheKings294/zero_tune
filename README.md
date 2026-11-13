@@ -1,4 +1,4 @@
-# Repasse — le matériel du lycée passe de main en main
+# ZeroTune — le matériel du lycée passe de main en main
 
 PWA mobile-first de dons et de ventes de matériel scolaire entre élèves, pour le Bureau des Étudiants (BDE). Texte uniquement, sans framework, conçue pour les petits téléphones et les forfaits épuisés. Brief : `docs/brief-repasse-v1.xml` ; spécifications : `docs/SPEC*.md`.
 
