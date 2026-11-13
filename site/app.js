@@ -735,7 +735,7 @@
     { critere: 'Requêtes par page', objectif: 'Moins de 15', reel: '6', statut: 'Respecté' },
     { critere: 'Temps d’affichage', objectif: 'Moins de 3 s en 3G', reel: 'Entre 1,5 et 2 s', statut: 'Respecté' },
     { critere: 'EcoIndex', objectif: 'A ou B', reel: 'A (92,98/100)', statut: 'Respecté' },
-    { critere: 'Score RGESN', objectif: '—', reel: '89 %', statut: 'Mesuré' }
+    { critere: 'Score RGESN', objectif: '—', reel: '92,86 %', statut: 'Mesuré' }
   ];
 
   function budgetSection() {
